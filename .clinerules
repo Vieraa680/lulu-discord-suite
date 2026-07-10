@@ -1,0 +1,29 @@
+# Lulu Discord Suite - Project Rules & Architecture
+
+You are an expert software engineer collaborating on "lulu-discord-suite", an open-source Discord ecosystem structured as a Monorepo. Always adhere strictly to these rules.
+
+## Project Architecture
+This is an npm workspaces monorepo. Never treat applications as isolated repositories.
+- `apps/minigames-bot`: Discord.js bot handling League of Legends themed minigames.
+- `apps/admin-bot`: Discord.js bot handling server administration, logs, and moderation.
+- `apps/crm-dashboard`: Next.js web panel (App Router, Tailwind CSS, TypeScript).
+- `packages/database`: Shared database package using Prisma ORM and PostgreSQL.
+
+## Crucial Workspace Rules
+1. **Never install app-specific dependencies in the root directory.** Always use the `-w` flag or navigate to the workspace folder.
+   - Example to add an npm package to minigames: `npm install <package> -w apps/minigames-bot`
+2. **Never commit `.env` files.** Ensure all environment variables remain strictly local.
+3. **All code, comments, folder names, and commit messages must be written strictly in English.**
+
+## Git Flow & Commit Conventions
+We use a simplified Git Flow. Branches must use the format: `feature/app-name-description` (e.g., `feature/minigames-polymorphia`).
+Commit messages must follow Conventional Commits:
+- `feat(minigames): ...`
+- `fix(admin): ...`
+- `feat(crm): ...`
+- `chore(repo): ...`
+
+## Tech Stack Guidelines
+- **Backend/Bots:** Node.js, JavaScript/TypeScript, Discord.js v14+, dotenv. Use Slash Commands (`/`) for bot interactions; avoid legacy text prefix commands except for passive event listening.
+- **Frontend:** Next.js (latest stable, App Router), TypeScript, Tailwind CSS.
+- **Database:** Prisma ORM connecting to PostgreSQL. Always update the schema in `packages/database` so both the bots and the web dashboard stay in sync.
