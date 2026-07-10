@@ -1,0 +1,14 @@
+{
+  "name": "lulu-discord-suite",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:minijuegos": "npm run dev -w apps/bot-minijuegos",
+    "dev:admin": "npm run dev -w apps/bot-admin",
+    "dev:web": "npm run dev -w apps/crm-dashboard"
+  }
+}
