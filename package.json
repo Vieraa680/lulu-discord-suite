@@ -7,8 +7,8 @@
     "packages/*"
   ],
   "scripts": {
-    "dev:minijuegos": "npm run dev -w apps/bot-minijuegos",
-    "dev:admin": "npm run dev -w apps/bot-admin",
+    "dev:minigames": "npm run dev -w apps/minigames-bot",
+    "dev:admin": "npm run dev -w apps/admin-bot",
     "dev:web": "npm run dev -w apps/crm-dashboard"
   }
 }
