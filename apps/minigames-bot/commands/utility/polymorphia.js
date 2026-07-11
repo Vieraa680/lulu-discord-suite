@@ -8,7 +8,7 @@ module.exports = {
         .addUserOption(option =>
             option
                 .setName('target')
-                .setDescription('The user to challenge to a Polymorphia duel')
+                .setDescription('El usuario a desafiar a un duelo de Polymorphia')
                 .setRequired(true)
         ),
 
@@ -24,7 +24,7 @@ module.exports = {
         // ── Validation ──────────────────────────────────────────────
         if (target.id === interaction.user.id) {
             await interaction.reply({
-                content: 'You cannot challenge yourself to Polymorphia! Pick another summoner.',
+                content: 'No puedes desafiarte a ti mismo a Polymorphia! Elige otro invocador.',
                 ephemeral: true
             })
             return
@@ -32,7 +32,7 @@ module.exports = {
 
         if (target.bot) {
             await interaction.reply({
-                content: 'Bots cannot participate in Polymorphia. Challenge a real summoner!',
+                content: 'Los bots no pueden participar en Polymorphia. Desafia a un invocador de verdad!',
                 ephemeral: true
             })
             return
@@ -41,11 +41,11 @@ module.exports = {
         await interaction.deferReply()
 
         try {
-            const member = interaction.options.getMember('target')
+            const member = interaction.options.getMember('objetivo')
 
             if (!member) {
                 await interaction.editReply(
-                    'Could not find that user in this server. Are they still here? 🤔'
+                    'No pude encontrar a ese usuario en este servidor. Todavia esta aqui? 🤔'
                 )
                 return
             }
@@ -53,8 +53,8 @@ module.exports = {
             // Check if bot has permission to manage nicknames
             if (!interaction.guild.members.me.permissions.has(PermissionFlagsBits.ManageNicknames)) {
                 await interaction.editReply(
-                    'I need the **Manage Nicknames** permission to cast Polymorphia! ' +
-                    'Please ask an admin to grant it.'
+                    'Necesito el permiso **Gestionar Apodos** para lanzar Polymorphia! ' +
+                    'Pidele a un admin que lo active.'
                 )
                 return
             }
@@ -63,8 +63,8 @@ module.exports = {
             const botMember = interaction.guild.members.me
             if (botMember.roles.highest.comparePositionTo(member.roles.highest) < 0) {
                 await interaction.editReply(
-                    `${target}, your aura is too powerful! I cannot polymorph you ` +
-                    'because your highest role is above mine. 👑'
+                    `${target}, tu aura es demasiado poderosa! No puedo polimorfarte ` +
+                    'porque tu rol mas alto esta por encima del mio.'
                 )
                 return
             }
@@ -75,20 +75,19 @@ module.exports = {
             await member.setNickname(polymorphNickname)
 
             await interaction.editReply(
-                `**Polymorphia** has been cast!\n\n` +
-                `${interaction.user} challenged ${target} and won!\n\n` +
-                `${target} has been transformed into **"${polymorphNickname}"**\n\n` +
-                `*May this new form bring glory to the Rift!*`
+                `**Polymorphia** ha sido lanzada!\n\n` +
+                `${interaction.user} desafio a ${target} y gano!\n\n` +
+                `${target} ha sido transformado en **"${polymorphNickname}"**\n\n` +
+                `*Que esta nueva forma traiga gloria a la Grieta!*`
             )
         } catch (error) {
-            console.error('[polymorphia] Error during execution:', error)
+            console.error('[polymorphia] Error durante la ejecucion:', error)
 
             const errorMessage =
                 error.message?.includes('DeepSeek')
-                    ? 'The magical realm is unstable right now. DeepSeek could not be reached. Try again later!'
-                    : 'Something went wrong while casting Polymorphia. Try again later!'
+                    ? 'El reino magico esta inestable. No se pudo contactar a DeepSeek. Intenta de nuevo mas tarde!'
+                    : 'Algo salio mal al lanzar Polymorphia. Intenta de nuevo mas tarde!'
 
-            // Use editReply since we already deferred
             await interaction.editReply(errorMessage)
         }
     }
