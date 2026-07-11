@@ -6,34 +6,51 @@ if (process.env.NODE_ENV !== 'production') {
     globalThis.__prismaClient__ = prisma
 }
 
-async function getOrCreateUser(userId, username) {
+/**
+ * Get or create a user record for a given Discord user in a specific guild.
+ * @param {string} discordId - Discord User snowflake
+ * @param {string} guildId   - Discord Server ID
+ * @param {string} username  - Display name
+ */
+async function getOrCreateUser(discordId, guildId, username) {
     return prisma.user.upsert({
-        where: { id: userId },
+        where: {
+            discordId_guildId: { discordId, guildId }
+        },
         update: { username },
         create: {
-            id: userId,
+            discordId,
+            guildId,
             username
         }
     })
 }
 
-async function addGominolas(userId, username, amount, description) {
-    const user = await getOrCreateUser(userId, username)
+/**
+ * Add candies to a user's balance and log the transaction.
+ * @param {string} discordId
+ * @param {string} guildId
+ * @param {string} username
+ * @param {number} amount
+ * @param {string} description
+ */
+async function addCandies(discordId, guildId, username, amount, description) {
+    const user = await getOrCreateUser(discordId, guildId, username)
 
     const [updatedUser] = await prisma.$transaction([
         prisma.user.update({
-            where: { id: userId },
+            where: { id: user.id },
             data: {
-                gominolas: { increment: amount },
+                candies: { increment: amount },
                 totalEarned: { increment: amount }
             }
         }),
         prisma.transaction.create({
             data: {
-                userId,
+                userId: user.id,
                 type: 'earn',
                 amount,
-                balanceAfter: user.gominolas + amount,
+                balanceAfter: user.candies + amount,
                 description
             }
         })
@@ -42,24 +59,8 @@ async function addGominolas(userId, username, amount, description) {
     return updatedUser
 }
 
-async function incrementButterflyCaught(userId) {
-    await prisma.polymorphiaState.upsert({
-        where: { userId },
-        update: {
-            butterfliesCaught: { increment: 1 },
-            totalButterflies: { increment: 1 }
-        },
-        create: {
-            userId,
-            butterfliesCaught: 1,
-            totalButterflies: 1
-        }
-    })
-}
-
 module.exports = {
     prisma,
     getOrCreateUser,
-    addGominolas,
-    incrementButterflyCaught
+    addCandies
 }

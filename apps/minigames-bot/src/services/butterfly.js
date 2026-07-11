@@ -4,7 +4,7 @@ const {
     ButtonBuilder,
     ButtonStyle
 } = require('discord.js')
-const { addGominolas, incrementButterflyCaught } = require('#services/database')
+const { addCandies } = require('#services/database')
 
 function parseChannelId(customId) {
     const parts = customId.split(':')
@@ -58,7 +58,7 @@ async function handleButterflyCatch(interaction, client) {
         .setTitle('Mariposa Atrapada!')
         .setDescription(
             `${tag} fue mas rapido que **Pix** y atrapo la Mariposa Morada!\n\n` +
-            `+**${reward} Gominolas Moradas** han sido anadidas a su inventario.`
+            `+**${reward} Candies** han sido anadidos a tu saldo.`
         )
         .setColor(0xA020F0)
         .setFooter({ text: 'Sigue participando en el chat para que aparezca la siguiente!' })
@@ -85,20 +85,20 @@ async function handleButterflyCatch(interaction, client) {
     }
 
     try {
-        await addGominolas(
+        await addCandies(
             interaction.user.id,
+            interaction.guildId,
             interaction.user.username,
             reward,
             'Atrapo una mariposa morada!'
         )
-        await incrementButterflyCaught(interaction.user.id)
     } catch (error) {
         console.error('[butterflyService] Database error while rewarding:', error.message)
     }
 
     try {
         await interaction.followUp({
-            content: `Atrapaste la mariposa morada! Ganaste **${reward} Gominolas Moradas**`,
+            content: `Atrapaste la mariposa morada! Ganaste **${reward} Candies**`,
             ephemeral: true
         })
     } catch {

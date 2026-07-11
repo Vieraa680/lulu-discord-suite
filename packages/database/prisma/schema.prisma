@@ -17,31 +17,59 @@ datasource db {
 // ──────────────────────────────────────────────
 // USER
 // ──────────────────────────────────────────────
-// Represents a Discord user tracked by the bots.
-// The id matches the Discord snowflake.
+// Represents a Discord user's data within a single guild.
+// A user can have multiple rows — one per guild they interact with.
+// The `discordId` + `guildId` pair is unique.
 model User {
-  id            String   @id @default("") // Discord snowflake, set on first interaction
-  username      String   @default("")
-  globalName    String?  @default("")
-  avatarUrl     String?  @default("")
+  id        String @id @default(uuid()) // Surrogate primary key
+  discordId String                      // Discord User snowflake
+  guildId   String                      // Discord Server ID
+
+  username   String @default("")
+  globalName String?
+  avatarUrl  String?
 
   // ── Economy ──
-  gominolas     Int      @default(0)      // Main currency ("gummies")
-  totalEarned   Int      @default(0)      // Lifetime gominolas earned
-  totalSpent    Int      @default(0)      // Lifetime gominolas spent
+  candies     Int @default(0) // Main currency ("candies")
+  totalEarned Int @default(0) // Lifetime candies earned
+  totalSpent  Int @default(0) // Lifetime candies spent
 
-  // ── Polymorphia ──
-  polymorphiaState PolymorphiaState?
+  // ── Polymorphia stats ──
+  polymorphiaWins   Int @default(0)
+  polymorphiaLosses Int @default(0)
+  polymorphiaSaved  Int @default(0) // Successful defenses
 
-  // ── Inventory ──
-  items         UserItem[]
-
-  // ── Transaction history ──
-  transactions  Transaction[]
+  // ── Relations ──
+  state        PolymorphiaState?
+  items        UserItem[]
+  transactions Transaction[]
 
   // ── Timestamps ──
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([discordId, guildId])
+  @@index([discordId])
+  @@index([guildId])
+}
+
+// ──────────────────────────────────────────────
+// POLYMORPHIA STATE
+// ──────────────────────────────────────────────
+// Tracks the active polymorphia game state per user.
+model PolymorphiaState {
+  id          String    @id @default(uuid())
+  userId      String    @unique
+  guildId     String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  isActive    Boolean  @default(false)    // Is the user currently polymorphed?
+  currentForm String   @default("")       // e.g. "yuumi", "teemo", "poro"
+  startedAt   DateTime?                   // When the current form started
+  endsAt      DateTime?                   // When the current form expires
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 // ──────────────────────────────────────────────
@@ -50,20 +78,20 @@ model User {
 // Catalog of collectible / purchasable items.
 // Used by minigames and the shop system.
 model Item {
-  id          String     @id @default(cuid())
-  name        String     @unique
-  description String     @default("")
-  emoji       String     @default("🎁")     // Discord emoji for display
-  price       Int        @default(0)        // Cost in gominolas (0 = not for sale)
-  category    String     @default("general") // e.g. "butterfly", "consumable", "cosmetic"
-  rarity      String     @default("common")  // common / uncommon / rare / epic / legendary
-  isCollectible Boolean  @default(false)    // Can be found via minigames?
-  isActive    Boolean    @default(true)     // Soft-delete / disable flag
+  id            String     @id @default(uuid())
+  name          String     @unique
+  description   String     @default("")
+  emoji         String     @default("🎁")     // Discord emoji for display
+  price         Int        @default(0)        // Cost in candies (0 = not for sale)
+  category      String     @default("general") // e.g. "butterfly", "consumable", "cosmetic"
+  rarity        String     @default("common")  // common / uncommon / rare / epic / legendary
+  isCollectible Boolean    @default(false)    // Can be found via minigames?
+  isActive      Boolean    @default(true)     // Soft-delete / disable flag
 
-  owners      UserItem[]
+  owners        UserItem[]
 
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
 }
 
 // ──────────────────────────────────────────────
@@ -71,7 +99,7 @@ model Item {
 // ──────────────────────────────────────────────
 // Tracks how many of a given item a user owns.
 model UserItem {
-  id        String   @id @default(cuid())
+  id        String   @id @default(uuid())
   userId    String
   itemId    String
   quantity  Int      @default(1)
@@ -87,45 +115,22 @@ model UserItem {
 }
 
 // ──────────────────────────────────────────────
-// POLYMORPHIA STATE
-// ──────────────────────────────────────────────
-// Tracks the active polymorphia game state per user.
-model PolymorphiaState {
-  id            String   @id @default(cuid())
-  userId        String   @unique
-  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  isActive      Boolean  @default(false)    // Is the user currently polymorphed?
-  currentForm   String   @default("")       // e.g. "yuumi", "teemo", "poro"
-  formDuration  Int      @default(0)        // Duration in minutes
-  startedAt     DateTime?                    // When the current form started
-  endsAt        DateTime?                    // When the current form expires
-
-  // ── Butterfly hunt stats ──
-  butterfliesCaught Int  @default(0)
-  totalButterflies   Int  @default(0)
-
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-}
-
-// ──────────────────────────────────────────────
 // TRANSACTION
 // ──────────────────────────────────────────────
-// Immutable audit log of every gominola movement.
+// Immutable audit log of every candy movement.
 model Transaction {
-  id          String   @id @default(cuid())
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id           String   @id @default(uuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  type        String   // "earn" | "spend" | "refund" | "admin"
-  amount      Int      // Positive amount (sign is derived from type)
-  balanceAfter Int     // User's gominolas balance after this transaction
-  description String   @default("")         // e.g. "Caught a butterfly!", "Bought Yuumi form"
+  type         String   // "earn" | "spend" | "refund" | "admin"
+  amount       Int      // Positive amount (sign is derived from type)
+  balanceAfter Int      // User's candies balance after this transaction
+  description  String   @default("")  // e.g. "Caught a butterfly!", "Bought Yuumi form"
 
-  referenceId String?  // Optional: links to a related entity (itemId, gameId, etc.)
+  referenceId  String?  // Optional: links to a related entity (itemId, gameId, etc.)
 
-  createdAt   DateTime @default(now())
+  createdAt    DateTime @default(now())
 
   @@index([userId])
   @@index([createdAt])

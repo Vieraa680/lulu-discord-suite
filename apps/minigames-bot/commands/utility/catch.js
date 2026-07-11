@@ -5,7 +5,7 @@ const {
     ButtonBuilder,
     ButtonStyle
 } = require('discord.js')
-const { addGominolas, incrementButterflyCaught } = require('#services/database')
+const { addCandies } = require('#services/database')
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -49,7 +49,7 @@ module.exports = {
             .setTitle('Mariposa Atrapada!')
             .setDescription(
                 `${tag} fue mas rapido que **Pix** y atrapo la Mariposa Morada!\n\n` +
-                `+**${reward} Gominolas Moradas** han sido anadidas a su inventario.`
+                `+**${reward} Candies** han sido anadidos a tu saldo.`
             )
             .setColor(0xA020F0)
             .setFooter({ text: 'Sigue participando en el chat para que aparezca la siguiente!' })
@@ -71,14 +71,19 @@ module.exports = {
         }
 
         try {
-            await addGominolas(interaction.user.id, interaction.user.username, reward, 'Atrapo una mariposa morada con /catch!')
-            await incrementButterflyCaught(interaction.user.id)
+            await addCandies(
+                interaction.user.id,
+                interaction.guildId,
+                interaction.user.username,
+                reward,
+                'Atrapo una mariposa morada con /catch!'
+            )
         } catch (error) {
             console.error('[catchCommand] Database error while rewarding:', error.message)
         }
 
         await interaction.editReply(
-            `Atrapaste la mariposa morada con **/catch**! Ganaste **${reward} Gominolas Moradas**`
+            `Atrapaste la mariposa morada con **/catch**! Ganaste **${reward} Candies**`
         )
     }
 }
