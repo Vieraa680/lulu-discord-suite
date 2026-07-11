@@ -29,8 +29,11 @@ async function generatePolymorphiaNickname(username) {
         '- Devuelve SOLO el apodo, nada mas -- sin comillas, sin explicaciones, sin formato.\n' +
         '- El apodo DEBE tener 32 caracteres o menos (limite de apodos de Discord).\n' +
         '- Hazlo divertido, tematico y unico cada vez.\n' +
-        '- Escribelo SIEMPRE EN ESPANOL. Usa combinaciones creativas como "Teemo el Veloz", "El Mejor Amigo de Yuumi", "Rey Poro", etc.\n' +
-        '- NUNCA repitas el mismo apodo para diferentes usuarios -- varia el campeon/tema.'
+        '- Escribelo SIEMPRE EN ESPANOL.\n' +
+        '- NUNCA uses a Teemo. Jamas. Teemo esta prohibido.\n' +
+        '- Varía entre muchos campeones diferentes: Yuumi, Poro, Lux, Garen, Ahri, Sett, Jinx, Ekko, Zoe, Lulu, etc.\n' +
+        '- Se creativo: combina objetos, habilidades, lore y campeones. Ejemplos: "Yuumi la Encantadora", "El Puño de Sett", "Poro Rey", "La Estrella de Zoe".\n' +
+        '- NUNCA repitas el mismo apodo ni el mismo campeon para diferentes usuarios.'
 
     const userPrompt = `Genera un apodo de polymorphia tematico de League of Legends para el usuario de Discord "${username}".`
 
