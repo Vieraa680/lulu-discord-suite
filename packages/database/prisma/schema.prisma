@@ -39,6 +39,10 @@ model User {
   polymorphiaLosses Int @default(0)
   polymorphiaSaved  Int @default(0) // Successful defenses
 
+  // ── Polymorphia cooldowns ──
+  lastPolymorphiaUse      DateTime?  // When the user last initiated a polymorphia duel (10 min cooldown)
+  polymorphiaProtectedUntil DateTime? // Until when the user is immune to being targeted (4h protection)
+
   // ── Relations ──
   state        PolymorphiaState?
   items        UserItem[]
@@ -66,6 +70,7 @@ model PolymorphiaState {
   isActive         Boolean  @default(false)    // Is the user currently polymorphed?
   currentForm      String   @default("")       // e.g. "yuumi", "teemo", "poro"
   previousNickname String   @default("")       // Original nickname to restore on expiration
+  formDuration     Int      @default(0)        // Duration in minutes
   startedAt        DateTime?                   // When the current form started
   endsAt           DateTime?                   // When the current form expires
 

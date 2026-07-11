@@ -1,13 +1,22 @@
 const { handleButterflyCatch } = require('#services/butterfly')
+const { handlePolymorphiaInteraction } = require('../../src/polymorphia/polymorphiaInteractions')
 
 module.exports = {
     name: 'interactionCreate',
 
     async execute(interaction, client) {
+        // ── Route polymorphia component interactions (buttons) ──
+        if ((interaction.isButton() || interaction.isAnySelectMenu()) &&
+            interaction.customId.startsWith('polymorphia_')) {
+            return handlePolymorphiaInteraction(interaction)
+        }
+
+        // ── Route butterfly catch buttons ──
         if (interaction.isButton() && interaction.customId.startsWith('butterfly_catch:')) {
             return handleButterflyCatch(interaction, client)
         }
 
+        // ── Slash commands ──
         if (!interaction.isChatInputCommand()) return
 
         if (!client.commands || client.commands.size === 0) {

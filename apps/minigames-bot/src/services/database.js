@@ -59,8 +59,42 @@ async function addCandies(discordId, guildId, username, amount, description) {
     return updatedUser
 }
 
+/**
+ * Spend (deduct) candies from a user and log the transaction.
+ * @param {string} discordId
+ * @param {string} guildId
+ * @param {string} username
+ * @param {number} amount
+ * @param {string} description
+ */
+async function spendCandies(discordId, guildId, username, amount, description) {
+    const user = await getOrCreateUser(discordId, guildId, username)
+
+    const [updatedUser] = await prisma.$transaction([
+        prisma.user.update({
+            where: { id: user.id },
+            data: {
+                candies: { decrement: amount },
+                totalSpent: { increment: amount }
+            }
+        }),
+        prisma.transaction.create({
+            data: {
+                userId: user.id,
+                type: 'spend',
+                amount,
+                balanceAfter: user.candies - amount,
+                description
+            }
+        })
+    ])
+
+    return updatedUser
+}
+
 module.exports = {
     prisma,
     getOrCreateUser,
-    addCandies
+    addCandies,
+    spendCandies
 }

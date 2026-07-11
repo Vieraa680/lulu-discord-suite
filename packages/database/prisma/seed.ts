@@ -21,8 +21,13 @@ const ITEMS = [
   { name: "Forma Gato Lunar",   emoji: "🌙", category: "form",     rarity: "epic",     price: 500, isCollectible: false },
 
   // ── Consumables ──
-  { name: "Red de Mariposas",   emoji: "🪤", category: "consumable", rarity: "common", price: 10,  isCollectible: false },
-  { name: "Poción de Polimorfia",emoji: "🧪", category: "consumable", rarity: "uncommon",price: 30, isCollectible: false },
+  { name: "Red de Mariposas",        emoji: "🪤", category: "consumable", rarity: "common",   price: 10,  isCollectible: false },
+  { name: "Poción de Polimorfia",    emoji: "🧪", category: "consumable", rarity: "uncommon", price: 30,  isCollectible: false },
+
+  // ── Polymorphia Defense Items ──
+  { name: "Escudo de Banshee",       emoji: "🛡️", category: "defense",    rarity: "rare",     price: 150, isCollectible: false },
+  { name: "Cetro de Cristal",        emoji: "🔮", category: "defense",    rarity: "epic",     price: 300, isCollectible: false },
+  { name: "Poción de Polvo de Hada", emoji: "🧴", category: "consumable", rarity: "common",   price: 40,  isCollectible: false },
 ]
 
 async function main() {

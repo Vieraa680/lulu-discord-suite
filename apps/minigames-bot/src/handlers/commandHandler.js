@@ -18,6 +18,38 @@ function loadCommands(client) {
 
     for (const category of categories) {
         const categoryPath = path.join(commandsPath, category)
+
+        // Check if this category has an index.js (subcommand group router)
+        const indexPath = path.join(categoryPath, 'index.js')
+        if (fs.existsSync(indexPath)) {
+            try {
+                const command = require(indexPath)
+
+                if (!command.data || !command.execute) {
+                    console.warn(
+                        `[CommandHandler] Skipping ${indexPath}: missing required "data" or "execute" export.`
+                    )
+                    continue
+                }
+
+                if (!command.data.name) {
+                    console.warn(
+                        `[CommandHandler] Skipping ${indexPath}: "data" must have a "name" property.`
+                    )
+                    continue
+                }
+
+                command.category = category
+                client.commands.set(command.data.name, command)
+                console.log(`[CommandHandler] Loaded slash command: ${command.data.name} (${category})`)
+                continue
+            } catch (error) {
+                console.error(`[CommandHandler] Failed to load command ${indexPath}:`, error.message)
+                continue
+            }
+        }
+
+        // Legacy: load flat .js files from the category folder
         const commandFiles = fs.readdirSync(categoryPath).filter(file => file.endsWith('.js'))
 
         for (const file of commandFiles) {
