@@ -1,19 +1,6 @@
-/**
- * DeepSeek API Service
- *
- * @module services/deepseek
- */
-
 const DEEPSEEK_API_URL = 'https://api.deepseek.com/v1/chat/completions'
 const DEEPSEEK_MODEL = 'deepseek-chat'
 
-/**
- * Calls the DeepSeek API to generate a creative, League of Legends themed
- * nickname for the given Discord user.
- *
- * @param {string} username
- * @returns {Promise<string>}
- */
 async function generatePolymorphiaNickname(username) {
     const apiKey = process.env.DEEPSEEK_API_KEY
 

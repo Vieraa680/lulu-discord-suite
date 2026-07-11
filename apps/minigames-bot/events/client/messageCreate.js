@@ -23,22 +23,22 @@ function buildButterflyMessage() {
     const reward = randomInt(MIN_REWARD, MAX_REWARD)
 
     const embed = new EmbedBuilder()
-        .setTitle('🦋 ¡Mariposa Morada Avistada!')
+        .setTitle('Mariposa Morada Avistada!')
         .setDescription(
-            '¡Una mariposa morada apareció volando! 🦋\n\n' +
-            '¡Rápido, atrápala antes de que **Pix** se la coma!\n\n' +
-            `La primera persona que la atrape ganará **${reward} Gominolas Moradas** 💜`
+            'Una mariposa morada aparecio volando!\n\n' +
+            'Rapido, atrapala antes de que **Pix** se la coma!\n\n' +
+            `La primera persona que la atrape ganara **${reward} Gominolas Moradas**`
         )
         .setColor(0xA020F0)
         .setFooter({
-            text: 'Presiona el botón o escribe /catch para atraparla — ¡tienes 2 minutos!'
+            text: 'Presiona el boton o escribe /catch para atraparla — tienes 2 minutos!'
         })
         .setTimestamp()
 
     const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
             .setCustomId('PLACEHOLDER')
-            .setLabel('🦋 ¡Atrapar!')
+            .setLabel('Atrapar!')
             .setStyle(ButtonStyle.Primary)
     )
 
@@ -103,26 +103,26 @@ module.exports = {
                     const msg = await message.channel.messages.fetch(active.messageId)
 
                     const escapedEmbed = new EmbedBuilder()
-                        .setTitle('🦋 La Mariposa Voló...')
+                        .setTitle('La Mariposa Volo...')
                         .setDescription(
-                            '¡Demasiado lento! **Pix** tuvo hambre y se comió la mariposa ' +
-                            'antes de que alguien pudiera mover un dedo. 😢'
+                            'Demasiado lento! **Pix** tuvo hambre y se comio la mariposa ' +
+                            'antes de que alguien pudiera mover un dedo.'
                         )
                         .setColor(0xA020F0)
-                        .setFooter({ text: 'La próxima vez será más rápida... 🦋' })
+                        .setFooter({ text: 'La proxima vez sera mas rapida...' })
                         .setTimestamp()
 
                     const disabledRow = new ActionRowBuilder().addComponents(
                         new ButtonBuilder()
                             .setCustomId(active.customId)
-                            .setLabel('🦋 ¡Atrapar!')
+                            .setLabel('Atrapar!')
                             .setStyle(ButtonStyle.Secondary)
                             .setDisabled(true)
                     )
 
                     await msg.edit({ embeds: [escapedEmbed], components: [disabledRow] })
                 } catch {
-                    // Message may have been deleted
+                    // message may have been deleted
                 }
             }, BUTTERFLY_LIFETIME_MS)
         } catch (error) {

@@ -2,14 +2,6 @@ const fs = require('fs')
 const path = require('path')
 const { Collection, REST, Routes } = require('discord.js')
 
-/**
- * Dynamically loads all Slash Command files from the commands/ directory.
- * Commands are organized in subdirectories (categories) like commands/utility/.
- * Each file must export: { data (SlashCommandBuilder), execute(interaction, client) }
- *
- * @param {import('discord.js').Client} client
- * @returns {Collection<string, object>}
- */
 function loadCommands(client) {
     client.commands = new Collection()
 
@@ -60,14 +52,6 @@ function loadCommands(client) {
     return client.commands
 }
 
-/**
- * Registers all loaded slash commands with the Discord API for a specific guild.
- * Uses the REST API to bulk-overwrite guild-specific commands for instant updates.
- *
- * @param {import('discord.js').Client} client
- * @param {string} guildId - The ID of the guild to register commands in
- * @returns {Promise<void>}
- */
 async function registerSlashCommands(client, guildId) {
     if (!client.commands || client.commands.size === 0) {
         console.warn('[CommandHandler] No slash commands to register.')

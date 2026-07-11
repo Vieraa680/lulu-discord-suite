@@ -17,7 +17,7 @@ module.exports = {
 
         const activeButterflies = client._activeButterflies
         if (!activeButterflies) {
-            await interaction.editReply('🦋 No hay ninguna mariposa activa en este momento.')
+            await interaction.editReply('No hay ninguna mariposa activa en este momento.')
             return
         }
 
@@ -26,15 +26,15 @@ module.exports = {
 
         if (!butterfly) {
             await interaction.editReply(
-                '🦋 No hay ninguna mariposa en este canal en este momento. ' +
-                '¡Sigue participando en el chat para que aparezca una!'
+                'No hay ninguna mariposa en este canal en este momento. ' +
+                'Sigue participando en el chat para que aparezca una!'
             )
             return
         }
 
         if (butterfly.caught) {
             await interaction.editReply(
-                '😅 ¡Alguien ya atrapó esta mariposa! La próxima vez sé más rápido.'
+                'Alguien ya atrapo esta mariposa. La proxima vez se mas rapido.'
             )
             return
         }
@@ -46,19 +46,19 @@ module.exports = {
         const tag = interaction.user.toString()
 
         const caughtEmbed = new EmbedBuilder()
-            .setTitle('🦋 ¡Mariposa Atrapada!')
+            .setTitle('Mariposa Atrapada!')
             .setDescription(
-                `¡${tag} fue más rápido que **Pix** y atrapó la Mariposa Morada! 💜\n\n` +
-                `+**${reward} Gominolas Moradas** han sido añadidas a su inventario.`
+                `${tag} fue mas rapido que **Pix** y atrapo la Mariposa Morada!\n\n` +
+                `+**${reward} Gominolas Moradas** han sido anadidas a su inventario.`
             )
             .setColor(0xA020F0)
-            .setFooter({ text: '¡Sigue participando en el chat para que aparezca la siguiente!' })
+            .setFooter({ text: 'Sigue participando en el chat para que aparezca la siguiente!' })
             .setTimestamp()
 
         const disabledRow = new ActionRowBuilder().addComponents(
             new ButtonBuilder()
                 .setCustomId(butterfly.customId)
-                .setLabel('🦋 ¡Atrapar!')
+                .setLabel('Atrapar!')
                 .setStyle(ButtonStyle.Secondary)
                 .setDisabled(true)
         )
@@ -71,14 +71,14 @@ module.exports = {
         }
 
         try {
-            await addGominolas(interaction.user.id, interaction.user.username, reward, '¡Atrapó una mariposa morada con /catch!')
+            await addGominolas(interaction.user.id, interaction.user.username, reward, 'Atrapo una mariposa morada con /catch!')
             await incrementButterflyCaught(interaction.user.id)
         } catch (error) {
             console.error('[catchCommand] Database error while rewarding:', error.message)
         }
 
         await interaction.editReply(
-            `🦋 ¡Atrapaste la mariposa morada con **/catch**! Ganaste **${reward} Gominolas Moradas** 💜`
+            `Atrapaste la mariposa morada con **/catch**! Ganaste **${reward} Gominolas Moradas**`
         )
     }
 }

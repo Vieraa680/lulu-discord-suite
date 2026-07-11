@@ -12,16 +12,9 @@ module.exports = {
                 .setRequired(true)
         ),
 
-    /**
-     * Executes the Polymorphia minigame slash command.
-     *
-     * @param {import('discord.js').ChatInputCommandInteraction} interaction
-     * @param {import('discord.js').Client} client
-     */
     async execute(interaction, client) {
         const target = interaction.options.getUser('target')
 
-        // ── Validation ──────────────────────────────────────────────
         if (target.id === interaction.user.id) {
             await interaction.reply({
                 content: 'No puedes desafiarte a ti mismo a Polymorphia! Elige otro invocador.',
@@ -46,12 +39,11 @@ module.exports = {
 
             if (!member) {
                 await interaction.editReply(
-                    'No pude encontrar a ese usuario en este servidor. Todavia esta aqui? 🤔'
+                    'No pude encontrar a ese usuario en este servidor. Todavia esta aqui?'
                 )
                 return
             }
 
-            // Check if bot has permission to manage nicknames
             if (!interaction.guild.members.me.permissions.has(PermissionFlagsBits.ManageNicknames)) {
                 await interaction.editReply(
                     'Necesito el permiso **Gestionar Apodos** para lanzar Polymorphia! ' +
@@ -60,12 +52,11 @@ module.exports = {
                 return
             }
 
-            // Check role hierarchy (Discord blocks nickname changes when target's highest role is above the bot's)
             const botMember = interaction.guild.members.me
             if (botMember.roles.highest.comparePositionTo(member.roles.highest) < 0) {
                 await interaction.editReply(
                     `${target}, tu aura es demasiado poderosa! No puedo polimorfarte ` +
-                    'porque tu rol mas alto esta por encima del mio. 👑'
+                    'porque tu rol mas alto esta por encima del mio.'
                 )
                 return
             }

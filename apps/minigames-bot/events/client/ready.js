@@ -4,11 +4,6 @@ module.exports = {
     name: 'ready',
     once: true,
 
-    /**
-     * Executes when the Discord client becomes ready.
-     * Registers slash commands to the configured guild.
-     * @param {import('discord.js').Client} client
-     */
     async execute(client) {
         console.log(`Lulu is awake! Logged in as ${client.user.tag}`)
         console.log(`Serving ${client.guilds.cache.size} guild(s)`)

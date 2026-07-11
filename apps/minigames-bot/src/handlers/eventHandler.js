@@ -1,13 +1,6 @@
 const fs = require('fs')
 const path = require('path')
 
-/**
- * Dynamically loads all event files from the events/ directory.
- * Events are organized in subdirectories like events/client/.
- * Each file must export: { name, once (optional), execute(...args) }
- *
- * @param {import('discord.js').Client} client
- */
 function loadEvents(client) {
     const eventsPath = path.join(__dirname, '..', '..', 'events')
 
