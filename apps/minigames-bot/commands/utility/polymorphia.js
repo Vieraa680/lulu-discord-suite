@@ -1,5 +1,9 @@
 const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js')
 const { generatePolymorphiaNickname } = require('#services/deepseek')
+const { prisma, getOrCreateUser } = require('#services/database')
+
+// Duration a polymorphia form lasts before auto-revert (24 hours)
+const POLYMORPHIA_DURATION_MS = 24 * 60 * 60 * 1000
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -64,13 +68,58 @@ module.exports = {
             const displayName = member.nickname || member.user.displayName || member.user.username
             const polymorphNickname = await generatePolymorphiaNickname(displayName)
 
+            // Persist the original display name before changing
+            const originalNickname = member.nickname || null
+
             await member.setNickname(polymorphNickname)
+
+            // Persist polymorphia state in the database
+            try {
+                const dbUser = await getOrCreateUser(
+                    target.id,
+                    interaction.guildId,
+                    target.username
+                )
+
+                const now = new Date()
+                const endsAt = new Date(now.getTime() + POLYMORPHIA_DURATION_MS)
+
+                await prisma.polymorphiaState.upsert({
+                    where: { userId: dbUser.id },
+                    update: {
+                        guildId: interaction.guildId,
+                        isActive: true,
+                        currentForm: polymorphNickname,
+                        previousNickname: originalNickname ?? '',
+                        startedAt: now,
+                        endsAt
+                    },
+                    create: {
+                        userId: dbUser.id,
+                        guildId: interaction.guildId,
+                        isActive: true,
+                        currentForm: polymorphNickname,
+                        previousNickname: originalNickname ?? '',
+                        startedAt: now,
+                        endsAt
+                    }
+                })
+
+                console.log(
+                    `[polymorphia] State persisted for ${target.id} ` +
+                    `until ${endsAt.toISOString()}`
+                )
+            } catch (dbError) {
+                console.error('[polymorphia] Failed to persist state:', dbError.message)
+                // Non-critical: nickname was already changed, sweeper just wont auto-revert
+            }
 
             await interaction.editReply(
                 `**Polymorphia** ha sido lanzada!\n\n` +
                 `${interaction.user} desafio a ${target} y gano!\n\n` +
                 `${target} ha sido transformado en **"${polymorphNickname}"**\n\n` +
-                `*Que esta nueva forma traiga gloria a la Grieta!*`
+                `*Que esta nueva forma traiga gloria a la Grieta!*\n\n` +
+                `_La transformacion se revertira automaticamente en 24 horas._`
             )
         } catch (error) {
             console.error('[polymorphia] Error durante la ejecucion:', error)

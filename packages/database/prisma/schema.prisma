@@ -63,10 +63,11 @@ model PolymorphiaState {
   guildId     String
   user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  isActive    Boolean  @default(false)    // Is the user currently polymorphed?
-  currentForm String   @default("")       // e.g. "yuumi", "teemo", "poro"
-  startedAt   DateTime?                   // When the current form started
-  endsAt      DateTime?                   // When the current form expires
+  isActive         Boolean  @default(false)    // Is the user currently polymorphed?
+  currentForm      String   @default("")       // e.g. "yuumi", "teemo", "poro"
+  previousNickname String   @default("")       // Original nickname to restore on expiration
+  startedAt        DateTime?                   // When the current form started
+  endsAt           DateTime?                   // When the current form expires
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
