@@ -5,7 +5,7 @@ const {
     ButtonStyle,
     PermissionFlagsBits
 } = require('discord.js')
-const { prisma } = require('#services/database')
+const { findUserByDiscord } = require('#services/database')
 const { resolveDuel, getDefenseItemConfig, getRandomDuration } = require('../DuelEngine')
 const { canInitiateDuel, canBeTargeted } = require('../CooldownManager')
 const { executeRewardFlow, DUEL_BET } = require('../RewardManager')
@@ -356,8 +356,8 @@ async function resolveAndComplete(interaction, session) {
 
     // Get fresh user records with current stats
     const [freshAttacker, freshDefender] = await Promise.all([
-        prisma.user.findUnique({ where: { discordId_guildId: { discordId: challengerId, guildId } } }),
-        prisma.user.findUnique({ where: { discordId_guildId: { discordId: targetId, guildId } } })
+        findUserByDiscord(challengerId, guildId),
+        findUserByDiscord(targetId, guildId)
     ])
 
     // Fetch veteran status for both players

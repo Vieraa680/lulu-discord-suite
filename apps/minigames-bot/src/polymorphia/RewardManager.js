@@ -1,4 +1,4 @@
-const { prisma } = require('#services/database')
+const { prisma, createPolymorphiaState, recordDuelResult, recordDefenderWin, incrementDailyDuelCount } = require('#services/database')
 const { generatePolymorphiaNickname } = require('#services/deepseek')
 const { getRandomFallbackNickname } = require('./fallbackNicknames')
 const { getRandomDuration } = require('./DuelEngine')
@@ -23,26 +23,20 @@ async function executeRewardFlow(interaction, duelResult, attackerDb, defenderDb
     const winnerDb = isAttackerWinner ? attackerDb : defenderDb
     const loserDb = isAttackerWinner ? defenderDb : attackerDb
 
-    // Distribute candies
+    // Distribute candies (complex business logic kept here)
     await distributeCandies(winnerDb, loserDb, guildId)
 
-    // Update duel stats
+    // Update duel stats (delegated to database.js)
     await updateDuelStats(winnerDb.id, loserDb.id, duelResult)
 
-    // Apply cooldowns
+    // Apply cooldowns (delegated to database.js via CooldownManager)
     await applyCooldowns(winnerDb.discordId, loserDb.discordId, guildId)
 
     // Increment daily duel count for the attacker (initiator)
     const today = new Date()
     today.setHours(0, 0, 0, 0)
     const isNewDay = !attackerDb.dailyDuelDate || attackerDb.dailyDuelDate < today
-    await prisma.user.update({
-        where: { id: attackerDb.id },
-        data: {
-            dailyDuelCount: isNewDay ? 1 : { increment: 1 },
-            dailyDuelDate: new Date()
-        }
-    })
+    await incrementDailyDuelCount(attackerDb.id, isNewDay)
 
     let polymorphiaApplied = false
 
@@ -131,40 +125,16 @@ async function distributeCandies(winnerDb, loserDb, guildId) {
 
 /**
  * Update polymorphia stats for both users.
+ * Delegated to database.js helpers.
  * @param {string} winnerDbId - Internal UUID of the winner
  * @param {string} loserDbId - Internal UUID of the loser
  * @param {object} duelResult
  */
 async function updateDuelStats(winnerDbId, loserDbId, duelResult) {
     if (duelResult.winner === 'attacker') {
-        await prisma.$transaction([
-            prisma.user.update({
-                where: { id: winnerDbId },
-                data: { polymorphiaWins: { increment: 1 } }
-            }),
-            prisma.user.update({
-                where: { id: loserDbId },
-                data: { polymorphiaLosses: { increment: 1 } }
-            })
-        ])
-
-        if (duelResult.blockedByShield) {
-            await prisma.user.update({
-                where: { id: loserDbId },
-                data: { polymorphiaSaved: { increment: 1 } }
-            })
-        }
+        await recordDuelResult(winnerDbId, loserDbId, duelResult.blockedByShield || false)
     } else {
-        await prisma.$transaction([
-            prisma.user.update({
-                where: { id: winnerDbId },
-                data: { polymorphiaSaved: { increment: 1 } }
-            }),
-            prisma.user.update({
-                where: { id: loserDbId },
-                data: { polymorphiaLosses: { increment: 1 } }
-            })
-        ])
+        await recordDefenderWin(winnerDbId, loserDbId)
     }
 }
 
@@ -190,8 +160,6 @@ async function applyPolymorphia(interaction, targetDiscordId, guildId) {
     }
 
     const durationMinutes = getRandomDuration()
-    const now = new Date()
-    const endsAt = new Date(now.getTime() + durationMinutes * 60 * 1000)
 
     // Save previous nickname and set new one
     await member.setNickname(
@@ -200,36 +168,11 @@ async function applyPolymorphia(interaction, targetDiscordId, guildId) {
     )
 
     // Get or create User DB record to get internal ID
-    const userDb = await prisma.user.findUnique({
-        where: { discordId_guildId: { discordId: targetDiscordId, guildId } }
-    })
-    if (!userDb) {
-        throw new Error(`User ${targetDiscordId} not found in DB for polymorphia state creation`)
-    }
+    const { getOrCreateUser } = require('#services/database')
+    const userDb = await getOrCreateUser(targetDiscordId, guildId, displayName)
 
-    // Upsert PolymorphiaState
-    await prisma.polymorphiaState.upsert({
-        where: { userId: userDb.id },
-        update: {
-            isActive: true,
-            currentForm: polymorphNickname,
-            previousNickname: displayName,
-            formDuration: durationMinutes,
-            startedAt: now,
-            endsAt,
-            guildId
-        },
-        create: {
-            userId: userDb.id,
-            isActive: true,
-            currentForm: polymorphNickname,
-            previousNickname: displayName,
-            formDuration: durationMinutes,
-            startedAt: now,
-            endsAt,
-            guildId
-        }
-    })
+    // Create PolymorphiaState via database.js helper
+    await createPolymorphiaState(userDb.id, guildId, displayName, polymorphNickname, durationMinutes)
 }
 
 module.exports = {
