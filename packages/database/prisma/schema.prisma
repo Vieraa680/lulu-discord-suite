@@ -42,6 +42,8 @@ model User {
   // ── Polymorphia cooldowns ──
   lastPolymorphiaUse      DateTime?  // When the user last initiated a polymorphia duel (10 min cooldown)
   polymorphiaProtectedUntil DateTime? // Until when the user is immune to being targeted (4h protection)
+  dailyDuelCount          Int        @default(0)  // Duels initiated today (resets daily)
+  dailyDuelDate           DateTime?               // Date of last duel initiation (for daily reset detection)
 
   // ── Relations ──
   state        PolymorphiaState?

@@ -215,6 +215,7 @@ async function handleStats(interaction) {
     const { prisma } = require('#services/database')
     const { progressBar, cooldownBar, relativeTimestamp } = require('#polymorphia/utils')
     const { DUEL_COOLDOWN_MS, PROTECTION_MS } = require('#polymorphia/CooldownManager')
+    const { checkVeteranRole } = require('#polymorphia/handlers/duelHandler')
 
     const target = interaction.options.getUser('user') || interaction.user
     const guildId = interaction.guild.id
@@ -237,13 +238,17 @@ async function handleStats(interaction) {
             return
         }
 
+        // Check veteran role for badge display
+        const veteranBonus = await checkVeteranRole(interaction.guild, discordId)
+        const veteranBadge = veteranBonus > 0 ? ' 🎖️ Invocador Veterano' : ''
+
         const s = user.state
         const isPolymorphed = s?.isActive || false
         const totalDuels = user.polymorphiaWins + user.polymorphiaLosses
         const winRate = totalDuels > 0 ? Math.round((user.polymorphiaWins / totalDuels) * 100) : 0
 
         const embed = new EmbedBuilder()
-            .setTitle(`📊 ${target.username} — Polymorphia Stats`)
+            .setTitle(`📊 ${target.username} — Polymorphia Stats${veteranBadge}`)
             .setColor(isPolymorphed ? 0xE74C3C : 0x9B59B6)
             .addFields(
                 { name: '🏆 Wins', value: `**${user.polymorphiaWins}**`, inline: true },

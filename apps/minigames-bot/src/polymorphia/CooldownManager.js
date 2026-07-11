@@ -31,11 +31,12 @@ async function canInitiateDuel(discordId, guildId) {
         }
     }
 
-    // Daily limit check (max 5 initiated duels in last 24h)
-    const last24h = new Date(Date.now() - 24 * 60 * 60 * 1000)
-    if (user.updatedAt > last24h) {
-        const totalDuelStats = user.polymorphiaWins + user.polymorphiaLosses
-        if (totalDuelStats >= DAILY_LIMIT) {
+    // Daily limit check using dedicated fields (accurate, resets daily)
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+
+    if (user.dailyDuelDate && user.dailyDuelDate >= today) {
+        if (user.dailyDuelCount >= DAILY_LIMIT) {
             return {
                 allowed: false,
                 reason: 'daily_limit',

@@ -2,7 +2,8 @@ const {
     EmbedBuilder,
     ActionRowBuilder,
     ButtonBuilder,
-    ButtonStyle
+    ButtonStyle,
+    PermissionFlagsBits
 } = require('discord.js')
 const { prisma } = require('#services/database')
 const { resolveDuel, getDefenseItemConfig, getRandomDuration } = require('../DuelEngine')
@@ -17,6 +18,7 @@ const activeDuelRequests = new Map()
 
 const CHALLENGE_TIMEOUT_MS = 60_000  // 60s to accept/reject
 const DEFENSE_TIMEOUT_MS = 20_000    // 20s to pick defense
+const VETERAN_ROLE_NAME = process.env.VETERAN_ROLE_NAME || 'Invocador Veterano'
 
 async function handleDuel(interaction, client) {
     const target = interaction.options.getUser('target')
@@ -116,6 +118,14 @@ async function handleDuel(interaction, client) {
         return
     }
 
+    // ── Fetch veteran role status ──
+    const [challengerVetBonus, targetVetBonus] = await Promise.all([
+        checkVeteranRole(interaction.guild, challengerId),
+        checkVeteranRole(interaction.guild, targetId)
+    ])
+    const challengerVetBadge = challengerVetBonus > 0 ? ' 🎖️' : ''
+    const targetVetBadge = targetVetBonus > 0 ? ' 🎖️' : ''
+
     // ── Send challenge embed ──
     const challengeEmbed = new EmbedBuilder()
         .setTitle('⚔️ Polymorphia Duel Challenge!')
@@ -128,12 +138,12 @@ async function handleDuel(interaction, client) {
         )
         .addFields(
             {
-                name: '📊 Challenger Stats',
+                name: `📊 Challenger Stats${challengerVetBadge}`,
                 value: `Wins: **${challengerDb.polymorphiaWins}** | Losses: **${challengerDb.polymorphiaLosses}** | 🍬 **${challengerDb.candies}**`,
                 inline: true
             },
             {
-                name: '📊 Target Stats',
+                name: `📊 Target Stats${targetVetBadge}`,
                 value: `Wins: **${targetDb.polymorphiaWins}** | Losses: **${targetDb.polymorphiaLosses}** | 🍬 **${targetDb.candies}**`,
                 inline: true
             }
@@ -350,10 +360,20 @@ async function resolveAndComplete(interaction, session) {
         prisma.user.findUnique({ where: { discordId_guildId: { discordId: targetId, guildId } } })
     ])
 
+    // Fetch veteran status for both players
+    const [challengerVet, targetVet] = await Promise.all([
+        checkVeteranRole(interaction.guild, challengerId),
+        checkVeteranRole(interaction.guild, targetId)
+    ])
+
+    // Attach veteran bonus to stats objects for DuelEngine
+    const attackerStats = { ...(freshAttacker || challengerDb), veteranBonus: challengerVet }
+    const defenderStats = { ...(freshDefender || targetDb), veteranBonus: targetVet }
+
     // Resolve duel
     const duelResult = resolveDuel(
-        freshAttacker || challengerDb,
-        freshDefender || targetDb,
+        attackerStats,
+        defenderStats,
         defenseItem
     )
 
@@ -432,6 +452,24 @@ async function resolveAndComplete(interaction, session) {
     await interaction.editReply({ embeds: [resultEmbed], components: [] })
 }
 
+/**
+ * Check if a Discord member has the veteran role.
+ * @param {import('discord.js').Guild} guild
+ * @param {string} discordId
+ * @returns {Promise<number>} 2 if veteran, 0 otherwise
+ */
+async function checkVeteranRole(guild, discordId) {
+    try {
+        const member = await guild.members.fetch(discordId)
+        if (member.roles.cache.some(role => role.name === VETERAN_ROLE_NAME)) {
+            return 2
+        }
+    } catch {
+        // Member not found or not in guild, no bonus
+    }
+    return 0
+}
+
 function makeDuelKey(id1, id2) {
     return `${id1}_${id2}`
 }
@@ -440,5 +478,6 @@ module.exports = {
     handleDuel,
     handleDuelButton,
     handleDefenseButton,
+    checkVeteranRole,
     activeDuelRequests
 }

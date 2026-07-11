@@ -37,6 +37,8 @@ function getAttackerModifier(userStats) {
     let bonus = 0
     // +1 per win, cap at +5
     bonus += Math.min(userStats.polymorphiaWins || 0, 5)
+    // Veteran role bonus (+2 for "Invocador Veterano")
+    bonus += (userStats.veteranBonus || 0)
     return bonus
 }
 
@@ -50,6 +52,8 @@ function getDefenderModifier(userStats, defenseItem) {
     let bonus = 0
     // +1 per successful defense, cap at +3
     bonus += Math.min(userStats.polymorphiaSaved || 0, 3)
+    // Veteran role bonus (+2 for "Invocador Veterano")
+    bonus += (userStats.veteranBonus || 0)
     // Defense item bonus
     if (defenseItem) {
         bonus += defenseItem.rollBonus || 0

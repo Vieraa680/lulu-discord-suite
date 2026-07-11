@@ -1,5 +1,6 @@
 const { prisma } = require('#services/database')
 const { generatePolymorphiaNickname } = require('#services/deepseek')
+const { getRandomFallbackNickname } = require('./fallbackNicknames')
 const { getRandomDuration } = require('./DuelEngine')
 const { applyCooldowns } = require('./CooldownManager')
 
@@ -30,6 +31,18 @@ async function executeRewardFlow(interaction, duelResult, attackerDb, defenderDb
 
     // Apply cooldowns
     await applyCooldowns(winnerDb.discordId, loserDb.discordId, guildId)
+
+    // Increment daily duel count for the attacker (initiator)
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const isNewDay = !attackerDb.dailyDuelDate || attackerDb.dailyDuelDate < today
+    await prisma.user.update({
+        where: { id: attackerDb.id },
+        data: {
+            dailyDuelCount: isNewDay ? 1 : { increment: 1 },
+            dailyDuelDate: new Date()
+        }
+    })
 
     let polymorphiaApplied = false
 
@@ -166,7 +179,15 @@ async function applyPolymorphia(interaction, targetDiscordId, guildId) {
         await interaction.guild.members.fetch(targetDiscordId)
 
     const displayName = member.nickname || member.user.displayName || member.user.username
-    const polymorphNickname = await generatePolymorphiaNickname(displayName)
+
+    // Try DeepSeek API first, fallback to local pool on failure
+    let polymorphNickname
+    try {
+        polymorphNickname = await generatePolymorphiaNickname(displayName)
+    } catch (err) {
+        console.warn('[RewardManager] DeepSeek failed, using fallback nickname pool:', err.message)
+        polymorphNickname = getRandomFallbackNickname(displayName)
+    }
 
     const durationMinutes = getRandomDuration()
     const now = new Date()
