@@ -12,6 +12,9 @@ const { executeRewardFlow, DUEL_BET } = require('../RewardManager')
 const { getOwnedDefenseItems, consumeItem } = require('../ItemDefense')
 const { getOrCreateUser } = require('#services/database')
 const { progressBar, relativeTimestamp } = require('../utils')
+const {
+    iconifyUrlFromColor
+} = require('#services/icons')
 
 // Active duels map: `challengerId_targetId` -> duel session data
 const activeDuelRequests = new Map()
@@ -107,13 +110,13 @@ async function handleDuel(interaction, client) {
     // ── Candy check (both must have >= DUEL_BET) ──
     if (challengerDb.candies < DUEL_BET) {
         await interaction.editReply(
-            `You need at least **${DUEL_BET} 🍬 candies** to start a Polymorphia duel! You have ${challengerDb.candies}.`
+            `You need at least **${DUEL_BET} candies** to start a Polymorphia duel! You have ${challengerDb.candies}.`
         )
         return
     }
     if (targetDb.candies < DUEL_BET) {
         await interaction.editReply(
-            `${target} needs at least **${DUEL_BET} 🍬 candies** to accept a duel. They only have ${targetDb.candies}.`
+            `${target} needs at least **${DUEL_BET} candies** to accept a duel. They only have ${targetDb.candies}.`
         )
         return
     }
@@ -123,43 +126,45 @@ async function handleDuel(interaction, client) {
         checkVeteranRole(interaction.guild, challengerId),
         checkVeteranRole(interaction.guild, targetId)
     ])
-    const challengerVetBadge = challengerVetBonus > 0 ? ' 🎖️' : ''
-    const targetVetBadge = targetVetBonus > 0 ? ' 🎖️' : ''
+    const challengerVetSuffix = challengerVetBonus > 0 ? ' — Veteran' : ''
+    const targetVetSuffix = targetVetBonus > 0 ? ' — Veteran' : ''
 
     // ── Send challenge embed ──
     const challengeEmbed = new EmbedBuilder()
-        .setTitle('⚔️ Polymorphia Duel Challenge!')
+        .setAuthor({ name: 'Polymorphia Duel', iconURL: interaction.user.displayAvatarURL({ dynamic: true, size: 128 }) })
+        .setTitle('Polymorphia Duel Challenge!')
         .setDescription(
             `${interaction.user} has challenged ${target} to a Polymorphia duel!\n\n` +
-            `**Bet:** ${DUEL_BET} 🍬 candies each\n` +
-            `**Winner takes:** **${DUEL_BET + 25} 🍬** (net +25)\n` +
-            `**Loser gets back:** **25 🍬** (net -25)\n\n` +
+            `**Bet:** ${DUEL_BET} candies each\n` +
+            `**Winner takes:** **${DUEL_BET + 25}** (net +25)\n` +
+            `**Loser gets back:** **25** (net -25)\n\n` +
             `*The loser will be polymorphed into a League of Legends champion!*`
         )
         .addFields(
             {
-                name: `📊 Challenger Stats${challengerVetBadge}`,
-                value: `Wins: **${challengerDb.polymorphiaWins}** | Losses: **${challengerDb.polymorphiaLosses}** | 🍬 **${challengerDb.candies}**`,
+                name: `Challenger Stats${challengerVetSuffix}`,
+                value: `Wins: **${challengerDb.polymorphiaWins}** | Losses: **${challengerDb.polymorphiaLosses}** | **${challengerDb.candies}** candies`,
                 inline: true
             },
             {
-                name: `📊 Target Stats${targetVetBadge}`,
-                value: `Wins: **${targetDb.polymorphiaWins}** | Losses: **${targetDb.polymorphiaLosses}** | 🍬 **${targetDb.candies}**`,
+                name: `Target Stats${targetVetSuffix}`,
+                value: `Wins: **${targetDb.polymorphiaWins}** | Losses: **${targetDb.polymorphiaLosses}** | **${targetDb.candies}** candies`,
                 inline: true
             }
         )
         .setColor(0x9B59B6)
+        .setThumbnail(iconifyUrlFromColor('SWORDS', 0x9B59B6))
         .setFooter({ text: `${target.username} has 60 seconds to accept or reject.` })
         .setTimestamp()
 
     const acceptBtn = new ButtonBuilder()
         .setCustomId(`polymorphia_accept:${challengerId}:${targetId}`)
-        .setLabel('⚔️ Accept Duel')
+        .setLabel('Accept Duel')
         .setStyle(ButtonStyle.Success)
 
     const rejectBtn = new ButtonBuilder()
         .setCustomId(`polymorphia_reject:${challengerId}:${targetId}`)
-        .setLabel('❌ Reject')
+        .setLabel('Reject')
         .setStyle(ButtonStyle.Danger)
 
     const row = new ActionRowBuilder().addComponents(acceptBtn, rejectBtn)
@@ -192,9 +197,11 @@ async function handleDuel(interaction, client) {
             activeDuelRequests.delete(duelKey)
 
             const expiredEmbed = new EmbedBuilder()
-                .setTitle('⏰ Challenge Expired')
+                .setAuthor({ name: 'Expired', iconURL: iconifyUrlFromColor('ALARM', 0x95A5A6) })
+                .setTitle('Challenge Expired')
                 .setDescription(`${target} did not respond in time. The Polymorphia challenge has expired.`)
                 .setColor(0x95A5A6)
+                .setThumbnail(iconifyUrlFromColor('CROSS', 0x95A5A6))
                 .setTimestamp()
 
             interaction.editReply({ embeds: [expiredEmbed], components: [] }).catch(() => {})
@@ -245,9 +252,11 @@ async function handleDuelButton(interaction) {
         activeDuelRequests.delete(duelKey)
 
         const rejectedEmbed = new EmbedBuilder()
-            .setTitle('❌ Duel Rejected')
+            .setAuthor({ name: 'Rejected', iconURL: interaction.user.displayAvatarURL({ dynamic: true, size: 128 }) })
+            .setTitle('Duel Rejected')
             .setDescription(`${interaction.user} has rejected the Polymorphia challenge. No candies were lost.`)
             .setColor(0xE74C3C)
+            .setThumbnail(iconifyUrlFromColor('CROSS', 0xE74C3C))
             .setTimestamp()
 
         await interaction.update({ embeds: [rejectedEmbed], components: [] })
@@ -271,19 +280,21 @@ async function showDefenseSelection(interaction, session) {
     const ownedItems = await getOwnedDefenseItems(defenderId, guildId)
 
     const defenseEmbed = new EmbedBuilder()
-        .setTitle('🛡️ Choose Your Defense')
+        .setAuthor({ name: 'Defense Phase', iconURL: interaction.user.displayAvatarURL({ dynamic: true, size: 128 }) })
+        .setTitle('Choose Your Defense')
         .setDescription(
             `${interaction.user}, the Polymorphia duel has been accepted!\n\n` +
             'Choose your defense strategy. You have **20 seconds**.'
         )
         .setColor(0x3498DB)
+        .setThumbnail(iconifyUrlFromColor('SHIELD', 0x3498DB))
         .setTimestamp()
 
     const row = new ActionRowBuilder()
     row.addComponents(
         new ButtonBuilder()
             .setCustomId(`polymorphia_defense:none:${challengerId}:${targetId}`)
-            .setLabel('⚔️ No Defense (flat roll)')
+            .setLabel('No Defense (flat roll)')
             .setStyle(ButtonStyle.Secondary)
     )
 
@@ -294,7 +305,7 @@ async function showDefenseSelection(interaction, session) {
         row.addComponents(
             new ButtonBuilder()
                 .setCustomId(`polymorphia_defense:${item.name}:${challengerId}:${targetId}`)
-                .setLabel(`🛡️ ${item.name}`)
+                .setLabel(item.name)
                 .setStyle(ButtonStyle.Primary)
         )
     }
@@ -395,12 +406,23 @@ async function resolveAndComplete(interaction, session) {
     }
 
     // Build result embed
+    const resultColor = summary.isAttackerWinner ? 0x9B59B6 : 0x2ECC71
+    const resultIcon = summary.isAttackerWinner ? 'TROPHY' : 'SHIELD'
+    const winnerId = summary.isAttackerWinner ? challengerId : targetId
+    const winnerUser = interaction.guild.members.cache.get(winnerId)?.user || interaction.client.users.cache.get(winnerId)
+    const winnerAvatar = winnerUser ? winnerUser.displayAvatarURL({ dynamic: true, size: 128 }) : iconifyUrlFromColor(resultIcon, resultColor)
+
     const resultEmbed = new EmbedBuilder()
-        .setTitle(summary.isAttackerWinner ? '🏆 Polymorphia — Attacker Wins!' : '🛡️ Polymorphia — Defender Prevails!')
-        .setColor(summary.isAttackerWinner ? 0x9B59B6 : 0x2ECC71)
+        .setAuthor({
+            name: summary.isAttackerWinner ? 'Attacker Victorious' : 'Defender Prevails',
+            iconURL: winnerAvatar
+        })
+        .setTitle(summary.isAttackerWinner ? 'Polymorphia — Attacker Wins!' : 'Polymorphia — Defender Prevails!')
+        .setColor(resultColor)
+        .setThumbnail(iconifyUrlFromColor(resultIcon, resultColor))
         .addFields(
             {
-                name: '🎲 Rolls',
+                name: 'Rolls',
                 value: [
                     `**Attacker:** \`${duelResult.attackerRoll}\` (d20 + ${duelResult.attackerModifier})`,
                     `${progressBar(duelResult.attackerRoll, 20 + duelResult.attackerModifier, 8)}`,
@@ -410,10 +432,10 @@ async function resolveAndComplete(interaction, session) {
                 inline: false
             },
             {
-                name: '🍬 Rewards',
+                name: 'Rewards',
                 value: [
-                    `**Winner:** **+${DUEL_BET + 25} 🍬** (net +25)`,
-                    `**Loser:** **+25 🍬** refund (net -25)`
+                    `**Winner:** **+${DUEL_BET + 25}** (net +25)`,
+                    `**Loser:** **+25** refund (net -25)`
                 ].join('\n'),
                 inline: false
             }
@@ -424,27 +446,27 @@ async function resolveAndComplete(interaction, session) {
         if (summary.blockedByShield) {
             resultEmbed.setDescription(
                 `**${interaction.user}** won the Polymorphia duel!\n\n` +
-                `🛡️ But **${interaction.client.users.cache.get(targetId)}'s Escudo de Banshee** ` +
+                `But **${interaction.client.users.cache.get(targetId)}'s Escudo de Banshee** ` +
                 '**blocked** the nickname change! The shield shatters but the name stays safe.\n\n' +
                 `*The attacker still takes the gominolas, but the defender keeps their identity.*`
             )
         } else if (summary.polymorphiaApplied) {
             resultEmbed.setDescription(
                 `**${interaction.user}** won the Polymorphia duel!\n\n` +
-                `✨ Polymorphia cast on **${interaction.client.users.cache.get(targetId)}**!\n\n` +
+                `Polymorphia cast on **${interaction.client.users.cache.get(targetId)}**!\n\n` +
                 `*The loser has been transformed into a League of Legends champion.*`
             )
         } else {
             resultEmbed.setDescription(
                 `**${interaction.user}** won the Polymorphia duel!\n\n` +
-                `🌪️ The nickname change failed due to a magical disturbance. ` +
+                `The nickname change failed due to a magical disturbance. ` +
                 `The gominolas are still awarded.`
             )
         }
     } else {
         resultEmbed.setDescription(
             `**${interaction.client.users.cache.get(targetId)}** resisted the Polymorphia!\n\n` +
-            `🛡️ The magic rebounds! No one was transformed.\n\n` +
+            `The magic rebounds! No one was transformed.\n\n` +
             `*The defender's gominolas are safe!*`
         )
     }

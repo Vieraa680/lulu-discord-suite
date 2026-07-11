@@ -1,5 +1,6 @@
 const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js')
 const { handleDuel } = require('#polymorphia/handlers/duelHandler')
+const { iconifyUrlFromColor } = require('#services/icons')
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -106,13 +107,15 @@ async function handleShop(interaction) {
         }
 
         const embed = new EmbedBuilder()
-            .setTitle('🛡️ Polymorphia Defense Shop')
+            .setAuthor({ name: 'Item Shop', iconURL: iconifyUrlFromColor('CANDY', 0x9B59B6) })
+            .setTitle('Polymorphia Defense Shop')
             .setDescription(
                 `Buy items to defend yourself in Polymorphia duels!\n\n` +
-                `**Your Balance:** **${user.candies}** 🍬 candies\n` +
+                `**Your Balance:** **${user.candies}** candies\n` +
                 `*Click a button below to make a purchase.*`
             )
             .setColor(0x9B59B6)
+            .setThumbnail(iconifyUrlFromColor('SHIELD', 0x9B59B6))
             .setTimestamp()
 
         const rows = []
@@ -120,14 +123,13 @@ async function handleShop(interaction) {
 
         for (let i = 0; i < items.length; i++) {
             const item = items[i]
-            const emoji = item.emoji || '📦'
             const rarityColor = colorFromRarity(item.rarity)
             const canAfford = user.candies >= item.price
 
             embed.addFields({
-                name: `${emoji} ${item.name}`,
+                name: item.name,
                 value: [
-                    `**Price:** ${item.price} 🍬 ${canAfford ? '✅' : '❌'}`,
+                    `**Price:** ${item.price} candies`,
                     `*${item.description || getDefaultDescription(item)}*`,
                     `**Rarity:** \`${item.rarity.toUpperCase()}\``
                 ].join('\n'),
@@ -136,7 +138,7 @@ async function handleShop(interaction) {
 
             const btn = new ButtonBuilder()
                 .setCustomId(`polymorphia_shop_buy:${item.name}`)
-                .setLabel(`${canAfford ? 'Buy' : '🔒'} ${emoji}`)
+                .setLabel(`${canAfford ? 'Buy' : 'Locked'}`)
                 .setStyle(canAfford ? ButtonStyle.Success : ButtonStyle.Secondary)
                 .setDisabled(!canAfford)
 
@@ -189,15 +191,16 @@ async function handleInventory(interaction) {
         }
 
         const embed = new EmbedBuilder()
+            .setAuthor({ name: 'Inventory', iconURL: target.displayAvatarURL({ dynamic: true, size: 128 }) })
             .setTitle(`${target.username}'s Inventory`)
             .setColor(0x9B59B6)
+            .setThumbnail(iconifyUrlFromColor('PACKAGE', 0x9B59B6))
             .setTimestamp()
 
         for (const ui of user.items) {
             const item = ui.item
-            const emoji = item.emoji || '📦'
             embed.addFields({
-                name: `${emoji} ${item.name} x${ui.quantity}`,
+                name: `${item.name} x${ui.quantity}`,
                 value: `*${item.rarity} ${item.category}* — ${item.description || ''}`,
                 inline: true
             })
@@ -240,23 +243,26 @@ async function handleStats(interaction) {
 
         // Check veteran role for badge display
         const veteranBonus = await checkVeteranRole(interaction.guild, discordId)
-        const veteranBadge = veteranBonus > 0 ? ' 🎖️ Invocador Veterano' : ''
+        const veteranSuffix = veteranBonus > 0 ? ' — Invocador Veterano' : ''
 
         const s = user.state
         const isPolymorphed = s?.isActive || false
         const totalDuels = user.polymorphiaWins + user.polymorphiaLosses
         const winRate = totalDuels > 0 ? Math.round((user.polymorphiaWins / totalDuels) * 100) : 0
 
+        const statsColor = isPolymorphed ? 0xE74C3C : 0x9B59B6
         const embed = new EmbedBuilder()
-            .setTitle(`📊 ${target.username} — Polymorphia Stats${veteranBadge}`)
-            .setColor(isPolymorphed ? 0xE74C3C : 0x9B59B6)
+            .setAuthor({ name: `Polymorphia Stats${veteranSuffix}`, iconURL: iconifyUrlFromColor('CHART', statsColor) })
+            .setTitle(target.username)
+            .setColor(statsColor)
+            .setThumbnail(target.displayAvatarURL({ dynamic: true, size: 256 }))
             .addFields(
-                { name: '🏆 Wins', value: `**${user.polymorphiaWins}**`, inline: true },
-                { name: '💀 Losses', value: `**${user.polymorphiaLosses}**`, inline: true },
-                { name: '🛡️ Defended', value: `**${user.polymorphiaSaved}**`, inline: true },
-                { name: '📊 Win Rate', value: `**${winRate}%** (${totalDuels} total duels)`, inline: true },
-                { name: '🍬 Candies', value: `**${user.candies}** 🍬`, inline: true },
-                { name: '💰 Total Earned', value: `**${user.totalEarned}** 🍬`, inline: true }
+                { name: 'Wins', value: `**${user.polymorphiaWins}**`, inline: true },
+                { name: 'Losses', value: `**${user.polymorphiaLosses}**`, inline: true },
+                { name: 'Defended', value: `**${user.polymorphiaSaved}**`, inline: true },
+                { name: 'Win Rate', value: `**${winRate}%** (${totalDuels} total)`, inline: true },
+                { name: 'Candies', value: `**${user.candies}**`, inline: true },
+                { name: 'Total Earned', value: `**${user.totalEarned}**`, inline: true }
             )
 
         // ── Active polymorphia state ──
@@ -265,7 +271,7 @@ async function handleStats(interaction) {
             const total = s.endsAt.getTime() - s.startedAt.getTime()
             const elapsed = now - s.startedAt.getTime()
             embed.addFields({
-                name: '⚡ Currently Polymorphed!',
+                name: '⚡ Currently Polymorphed',
                 value: [
                     `**Form:** ${s.currentForm}`,
                     `**Duration:** ${progressBar(elapsed, total)}`,
@@ -285,27 +291,27 @@ async function handleStats(interaction) {
                 if (elapsed < DUEL_COOLDOWN_MS) {
                     const remaining = DUEL_COOLDOWN_MS - elapsed
                     cooldownLines.push(
-                        `⏳ **Duel Cooldown:** ${cooldownBar(remaining, DUEL_COOLDOWN_MS)}`
+                        `**Duel Cooldown:** ${cooldownBar(remaining, DUEL_COOLDOWN_MS)}`
                     )
                 } else {
-                    cooldownLines.push(`✅ **Duel Ready** — You can initiate a duel!`)
+                    cooldownLines.push('**Duel Ready** — You can initiate a duel!')
                 }
             } else {
-                cooldownLines.push(`✅ **Duel Ready** — You can initiate a duel!`)
+                cooldownLines.push('**Duel Ready** — You can initiate a duel!')
             }
 
             if (user.polymorphiaProtectedUntil) {
                 const remaining = user.polymorphiaProtectedUntil.getTime() - Date.now()
                 if (remaining > 0) {
                     cooldownLines.push(
-                        `🛡️ **Protected:** ${cooldownBar(remaining, PROTECTION_MS)}`
+                        `**Protected:** ${cooldownBar(remaining, PROTECTION_MS)}`
                     )
                 }
             }
 
             if (cooldownLines.length > 0) {
                 embed.addFields({
-                    name: '⏱️ Cooldown Status',
+                    name: 'Cooldown Status',
                     value: cooldownLines.join('\n'),
                     inline: false
                 })

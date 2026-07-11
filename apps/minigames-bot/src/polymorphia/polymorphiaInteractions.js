@@ -11,6 +11,7 @@
 const { handleDuelButton, handleDefenseButton } = require('./handlers/duelHandler')
 const { purchaseItem } = require('./ItemDefense')
 const { EmbedBuilder } = require('discord.js')
+const { iconifyUrlFromColor } = require('#services/icons')
 
 /**
  * Main entry point for polymorphia-related component interactions.
@@ -73,9 +74,11 @@ async function handleShopBuy(interaction) {
 
     if (result.success) {
         const embed = new EmbedBuilder()
-            .setTitle('✅ Purchase Successful!')
+            .setAuthor({ name: 'Shop Purchase', iconURL: interaction.user.displayAvatarURL({ dynamic: true, size: 128 }) })
+            .setTitle('Purchase Successful!')
             .setDescription(`You bought **${itemName}**! It has been added to your inventory.`)
             .setColor(0x2ECC71)
+            .setThumbnail(iconifyUrlFromColor('PACKAGE', 0x2ECC71))
             .setTimestamp()
 
         await interaction.editReply({ embeds: [embed] })
