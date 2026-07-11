@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js')
-const { handleDuel } = require('../../src/polymorphia/handlers/duelHandler')
+const { handleDuel } = require('#polymorphia/handlers/duelHandler')
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -83,7 +83,7 @@ module.exports = {
 
 async function handleShop(interaction) {
     const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js')
-    const { candies: candiesFn, getOrCreateUser } = require('#services/database')
+    const { getOrCreateUser } = require('#services/database')
     const { prisma } = require('#services/database')
 
     await interaction.deferReply()

@@ -1,5 +1,5 @@
 const { handleButterflyCatch } = require('#services/butterfly')
-const { handlePolymorphiaInteraction } = require('../../src/polymorphia/polymorphiaInteractions')
+const { handlePolymorphiaInteraction } = require('#polymorphia/polymorphiaInteractions')
 
 module.exports = {
     name: 'interactionCreate',

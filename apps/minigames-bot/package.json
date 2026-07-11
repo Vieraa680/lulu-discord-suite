@@ -17,6 +17,7 @@
   },
   "imports": {
     "#services/*": "./src/services/*.js",
-    "#handlers/*": "./src/handlers/*.js"
+    "#handlers/*": "./src/handlers/*.js",
+    "#polymorphia/*": "./src/polymorphia/*.js"
   }
 }
