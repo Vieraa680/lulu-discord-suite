@@ -49,7 +49,6 @@ module.exports = {
 
         switch (subcommand) {
             case 'duel':
-                // Permission check shared by all duel-related commands
                 if (!interaction.guild.members.me.permissions.has(PermissionFlagsBits.ManageNicknames)) {
                     await interaction.reply({
                         content: 'I need the **Manage Nicknames** permission to run Polymorphia! Ask an admin to enable it.',
@@ -83,20 +82,23 @@ module.exports = {
 
 async function handleShop(interaction) {
     const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js')
-    const { getOrCreateUser } = require('#services/database')
-    const { prisma } = require('#services/database')
+    const { getOrCreateUser, prisma } = require('#services/database')
+    const { colorFromRarity } = require('#polymorphia/utils')
 
     await interaction.deferReply()
 
     try {
-        const items = await prisma.item.findMany({
-            where: {
-                category: { in: ['defense', 'consumable'] },
-                isActive: true,
-                price: { gt: 0 }
-            },
-            orderBy: { price: 'asc' }
-        })
+        const [user, items] = await Promise.all([
+            getOrCreateUser(interaction.user.id, interaction.guild.id, interaction.user.username),
+            prisma.item.findMany({
+                where: {
+                    category: { in: ['defense', 'consumable'] },
+                    isActive: true,
+                    price: { gt: 0 }
+                },
+                orderBy: { price: 'asc' }
+            })
+        ])
 
         if (items.length === 0) {
             await interaction.editReply('The shop is empty right now. Check back later!')
@@ -105,7 +107,11 @@ async function handleShop(interaction) {
 
         const embed = new EmbedBuilder()
             .setTitle('🛡️ Polymorphia Defense Shop')
-            .setDescription('Buy items to defend yourself in Polymorphia duels!')
+            .setDescription(
+                `Buy items to defend yourself in Polymorphia duels!\n\n` +
+                `**Your Balance:** **${user.candies}** 🍬 candies\n` +
+                `*Click a button below to make a purchase.*`
+            )
             .setColor(0x9B59B6)
             .setTimestamp()
 
@@ -115,16 +121,24 @@ async function handleShop(interaction) {
         for (let i = 0; i < items.length; i++) {
             const item = items[i]
             const emoji = item.emoji || '📦'
+            const rarityColor = colorFromRarity(item.rarity)
+            const canAfford = user.candies >= item.price
+
             embed.addFields({
                 name: `${emoji} ${item.name}`,
-                value: `**${item.price}** 🍬 candies\n*${item.description || getDefaultDescription(item)}*\nRarity: ${item.rarity.toUpperCase()}`,
+                value: [
+                    `**Price:** ${item.price} 🍬 ${canAfford ? '✅' : '❌'}`,
+                    `*${item.description || getDefaultDescription(item)}*`,
+                    `**Rarity:** \`${item.rarity.toUpperCase()}\``
+                ].join('\n'),
                 inline: true
             })
 
             const btn = new ButtonBuilder()
                 .setCustomId(`polymorphia_shop_buy:${item.name}`)
-                .setLabel(`Buy ${emoji}`)
-                .setStyle(ButtonStyle.Success)
+                .setLabel(`${canAfford ? 'Buy' : '🔒'} ${emoji}`)
+                .setStyle(canAfford ? ButtonStyle.Success : ButtonStyle.Secondary)
+                .setDisabled(!canAfford)
 
             if (currentRow.components.length >= 3) {
                 rows.push(currentRow)
@@ -199,6 +213,8 @@ async function handleInventory(interaction) {
 async function handleStats(interaction) {
     const { EmbedBuilder } = require('discord.js')
     const { prisma } = require('#services/database')
+    const { progressBar, cooldownBar, relativeTimestamp } = require('#polymorphia/utils')
+    const { DUEL_COOLDOWN_MS, PROTECTION_MS } = require('#polymorphia/CooldownManager')
 
     const target = interaction.options.getUser('user') || interaction.user
     const guildId = interaction.guild.id
@@ -223,25 +239,75 @@ async function handleStats(interaction) {
 
         const s = user.state
         const isPolymorphed = s?.isActive || false
+        const totalDuels = user.polymorphiaWins + user.polymorphiaLosses
+        const winRate = totalDuels > 0 ? Math.round((user.polymorphiaWins / totalDuels) * 100) : 0
 
         const embed = new EmbedBuilder()
             .setTitle(`📊 ${target.username} — Polymorphia Stats`)
             .setColor(isPolymorphed ? 0xE74C3C : 0x9B59B6)
             .addFields(
-                { name: '🏆 Wins', value: `${user.polymorphiaWins}`, inline: true },
-                { name: '💀 Losses', value: `${user.polymorphiaLosses}`, inline: true },
-                { name: '🛡️ Defended', value: `${user.polymorphiaSaved}`, inline: true },
-                { name: '🍬 Candies', value: `${user.candies}`, inline: true }
+                { name: '🏆 Wins', value: `**${user.polymorphiaWins}**`, inline: true },
+                { name: '💀 Losses', value: `**${user.polymorphiaLosses}**`, inline: true },
+                { name: '🛡️ Defended', value: `**${user.polymorphiaSaved}**`, inline: true },
+                { name: '📊 Win Rate', value: `**${winRate}%** (${totalDuels} total duels)`, inline: true },
+                { name: '🍬 Candies', value: `**${user.candies}** 🍬`, inline: true },
+                { name: '💰 Total Earned', value: `**${user.totalEarned}** 🍬`, inline: true }
             )
-            .setTimestamp()
 
-        if (isPolymorphed) {
+        // ── Active polymorphia state ──
+        if (isPolymorphed && s.endsAt) {
+            const now = Date.now()
+            const total = s.endsAt.getTime() - s.startedAt.getTime()
+            const elapsed = now - s.startedAt.getTime()
             embed.addFields({
                 name: '⚡ Currently Polymorphed!',
-                value: `Form: **${s.currentForm}**\nExpires: <t:${Math.floor(s.endsAt.getTime() / 1000)}:R>`,
+                value: [
+                    `**Form:** ${s.currentForm}`,
+                    `**Duration:** ${progressBar(elapsed, total)}`,
+                    `**Expires:** ${relativeTimestamp(s.endsAt)}`,
+                    `**Started:** ${s.previousNickname} → **${s.currentForm}**`
+                ].join('\n'),
                 inline: false
             })
         }
+
+        // ── Cooldown status (only shown for self) ──
+        if (target.id === interaction.user.id) {
+            const cooldownLines = []
+
+            if (user.lastPolymorphiaUse) {
+                const elapsed = Date.now() - user.lastPolymorphiaUse.getTime()
+                if (elapsed < DUEL_COOLDOWN_MS) {
+                    const remaining = DUEL_COOLDOWN_MS - elapsed
+                    cooldownLines.push(
+                        `⏳ **Duel Cooldown:** ${cooldownBar(remaining, DUEL_COOLDOWN_MS)}`
+                    )
+                } else {
+                    cooldownLines.push(`✅ **Duel Ready** — You can initiate a duel!`)
+                }
+            } else {
+                cooldownLines.push(`✅ **Duel Ready** — You can initiate a duel!`)
+            }
+
+            if (user.polymorphiaProtectedUntil) {
+                const remaining = user.polymorphiaProtectedUntil.getTime() - Date.now()
+                if (remaining > 0) {
+                    cooldownLines.push(
+                        `🛡️ **Protected:** ${cooldownBar(remaining, PROTECTION_MS)}`
+                    )
+                }
+            }
+
+            if (cooldownLines.length > 0) {
+                embed.addFields({
+                    name: '⏱️ Cooldown Status',
+                    value: cooldownLines.join('\n'),
+                    inline: false
+                })
+            }
+        }
+
+        embed.setTimestamp()
 
         await interaction.editReply({ embeds: [embed] })
     } catch (error) {

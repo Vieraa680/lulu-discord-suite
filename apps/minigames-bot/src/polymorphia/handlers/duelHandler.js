@@ -10,6 +10,7 @@ const { canInitiateDuel, canBeTargeted } = require('../CooldownManager')
 const { executeRewardFlow, DUEL_BET } = require('../RewardManager')
 const { getOwnedDefenseItems, consumeItem } = require('../ItemDefense')
 const { getOrCreateUser } = require('#services/database')
+const { progressBar, relativeTimestamp } = require('../utils')
 
 // Active duels map: `challengerId_targetId` -> duel session data
 const activeDuelRequests = new Map()
@@ -121,9 +122,21 @@ async function handleDuel(interaction, client) {
         .setDescription(
             `${interaction.user} has challenged ${target} to a Polymorphia duel!\n\n` +
             `**Bet:** ${DUEL_BET} 🍬 candies each\n` +
-            `**Winner takes:** ${DUEL_BET + 25} 🍬 (net +25)\n` +
-            `**Loser gets back:** 25 🍬 (net -25)\n\n` +
-            `*The loser will be polymorphed into a League of Legends character!*`
+            `**Winner takes:** **${DUEL_BET + 25} 🍬** (net +25)\n` +
+            `**Loser gets back:** **25 🍬** (net -25)\n\n` +
+            `*The loser will be polymorphed into a League of Legends champion!*`
+        )
+        .addFields(
+            {
+                name: '📊 Challenger Stats',
+                value: `Wins: **${challengerDb.polymorphiaWins}** | Losses: **${challengerDb.polymorphiaLosses}** | 🍬 **${challengerDb.candies}**`,
+                inline: true
+            },
+            {
+                name: '📊 Target Stats',
+                value: `Wins: **${targetDb.polymorphiaWins}** | Losses: **${targetDb.polymorphiaLosses}** | 🍬 **${targetDb.candies}**`,
+                inline: true
+            }
         )
         .setColor(0x9B59B6)
         .setFooter({ text: `${target.username} has 60 seconds to accept or reject.` })
@@ -368,14 +381,20 @@ async function resolveAndComplete(interaction, session) {
         .addFields(
             {
                 name: '🎲 Rolls',
-                value: `**Attacker:** ${duelResult.attackerRoll} (d20 + ${duelResult.attackerModifier})\n` +
-                       `**Defender:** ${duelResult.defenderRoll} (d20 + ${duelResult.defenderModifier})`,
+                value: [
+                    `**Attacker:** \`${duelResult.attackerRoll}\` (d20 + ${duelResult.attackerModifier})`,
+                    `${progressBar(duelResult.attackerRoll, 20 + duelResult.attackerModifier, 8)}`,
+                    `**Defender:** \`${duelResult.defenderRoll}\` (d20 + ${duelResult.defenderModifier})`,
+                    `${progressBar(duelResult.defenderRoll, 20 + duelResult.defenderModifier, 8)}`
+                ].join('\n'),
                 inline: false
             },
             {
                 name: '🍬 Rewards',
-                value: `**Winner:** +${DUEL_BET + 25} candies (net +25)\n` +
-                       `**Loser:** +25 candies refund (net -25)`,
+                value: [
+                    `**Winner:** **+${DUEL_BET + 25} 🍬** (net +25)`,
+                    `**Loser:** **+25 🍬** refund (net -25)`
+                ].join('\n'),
                 inline: false
             }
         )
@@ -384,23 +403,29 @@ async function resolveAndComplete(interaction, session) {
     if (summary.isAttackerWinner) {
         if (summary.blockedByShield) {
             resultEmbed.setDescription(
-                `${interaction.user} won the duel but **${interaction.client.users.cache.get(targetId)}'s** ` +
-                '**Escudo de Banshee** blocked the polymorphia! The nickname was not changed.'
+                `**${interaction.user}** won the Polymorphia duel!\n\n` +
+                `🛡️ But **${interaction.client.users.cache.get(targetId)}'s Escudo de Banshee** ` +
+                '**blocked** the nickname change! The shield shatters but the name stays safe.\n\n' +
+                `*The attacker still takes the gominolas, but the defender keeps their identity.*`
             )
         } else if (summary.polymorphiaApplied) {
             resultEmbed.setDescription(
-                `${interaction.user} won the duel and cast Polymorphia!\n\n` +
-                `${interaction.client.users.cache.get(targetId)} has been transformed!`
+                `**${interaction.user}** won the Polymorphia duel!\n\n` +
+                `✨ Polymorphia cast on **${interaction.client.users.cache.get(targetId)}**!\n\n` +
+                `*The loser has been transformed into a League of Legends champion.*`
             )
         } else {
             resultEmbed.setDescription(
-                `${interaction.user} won the duel! (Nickname change failed due to a magical disturbance.)`
+                `**${interaction.user}** won the Polymorphia duel!\n\n` +
+                `🌪️ The nickname change failed due to a magical disturbance. ` +
+                `The gominolas are still awarded.`
             )
         }
     } else {
         resultEmbed.setDescription(
-            `${interaction.client.users.cache.get(targetId)} resisted the Polymorphia! ` +
-            'The magic rebounds! No one was transformed.'
+            `**${interaction.client.users.cache.get(targetId)}** resisted the Polymorphia!\n\n` +
+            `🛡️ The magic rebounds! No one was transformed.\n\n` +
+            `*The defender's gominolas are safe!*`
         )
     }
 
