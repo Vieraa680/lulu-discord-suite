@@ -1,5 +1,7 @@
 require('dotenv').config()
 const { Client, GatewayIntentBits } = require('discord.js')
+const { loadCommands } = require('./src/handlers/commandHandler')
+const { loadEvents } = require('./src/handlers/eventHandler')
 
 const client = new Client({
     intents: [
@@ -9,16 +11,8 @@ const client = new Client({
     ]
 })
 
-client.once('ready', () => {
-    console.log(`Lulu is awake! Logged in as ${client.user.tag}`)
-})
+loadCommands(client)
 
-client.on('messageCreate', async (message) => {
-    if (message.author.bot) return
-
-    if (message.content.toLowerCase() === '!ping') {
-        message.reply('Pong!')
-    }
-})
+loadEvents(client)
 
 client.login(process.env.DISCORD_TOKEN)
