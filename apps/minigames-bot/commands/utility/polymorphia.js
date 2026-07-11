@@ -41,7 +41,8 @@ module.exports = {
         await interaction.deferReply()
 
         try {
-            const member = interaction.options.getMember('objetivo')
+            const resolvedMembers = interaction.options.resolved?.members
+            const member = resolvedMembers?.get(target.id)
 
             if (!member) {
                 await interaction.editReply(
@@ -64,7 +65,7 @@ module.exports = {
             if (botMember.roles.highest.comparePositionTo(member.roles.highest) < 0) {
                 await interaction.editReply(
                     `${target}, tu aura es demasiado poderosa! No puedo polimorfarte ` +
-                    'porque tu rol mas alto esta por encima del mio.'
+                    'porque tu rol mas alto esta por encima del mio. 👑'
                 )
                 return
             }
