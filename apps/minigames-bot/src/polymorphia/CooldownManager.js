@@ -33,20 +33,9 @@ async function canInitiateDuel(discordId, guildId) {
 
     // Daily limit check (max 5 initiated duels in last 24h)
     const last24h = new Date(Date.now() - 24 * 60 * 60 * 1000)
-    const recentDuels = await prisma.polymorphiaState.count({
-        where: {
-            user: { discordId, guildId },
-            updatedAt: { gte: last24h },
-            polymorphiaWins: { gt: 0 }
-        }
-    })
-
-    // Simpler: count duels from User.updatedAt within 24h
     if (user.updatedAt > last24h) {
-        // Approximate: if the user's stats changed recently, check rough count
         const totalDuelStats = user.polymorphiaWins + user.polymorphiaLosses
-        // This isn't precise but works as a soft limit
-        if (totalDuelStats >= DAILY_LIMIT && user.updatedAt > last24h) {
+        if (totalDuelStats >= DAILY_LIMIT) {
             return {
                 allowed: false,
                 reason: 'daily_limit',
