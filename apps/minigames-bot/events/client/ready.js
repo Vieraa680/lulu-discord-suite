@@ -1,4 +1,4 @@
-const { registerSlashCommands } = require('../../src/handlers/commandHandler')
+const { registerSlashCommands } = require('#handlers/commandHandler')
 
 module.exports = {
     name: 'ready',

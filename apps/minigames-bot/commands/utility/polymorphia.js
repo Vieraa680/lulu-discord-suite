@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js')
-const { generatePolymorphiaNickname } = require('../../src/services/deepseek')
+const { generatePolymorphiaNickname } = require('#services/deepseek')
 
 module.exports = {
     data: new SlashCommandBuilder()

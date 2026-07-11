@@ -4,7 +4,7 @@ const {
     ButtonBuilder,
     ButtonStyle
 } = require('discord.js')
-const { addGominolas, incrementButterflyCaught } = require('../../src/services/database')
+const { addGominolas, incrementButterflyCaught } = require('#services/database')
 
 module.exports = {
     name: 'interactionCreate',
