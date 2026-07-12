@@ -351,6 +351,9 @@ async function handleDefenseButton(interaction) {
     }
 
     session.defenseItem = defenseName
+
+    await interaction.deferUpdate()
+
     await resolveAndComplete(interaction, session)
 }
 
