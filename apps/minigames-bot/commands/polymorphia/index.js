@@ -16,6 +16,13 @@ module.exports = {
                         .setDescription('El usuario a desafiar')
                         .setRequired(true)
                 )
+                .addIntegerOption(opt =>
+                    opt
+                        .setName('bet')
+                        .setDescription('Cantidad de gominolas a apostar')
+                        .setRequired(true)
+                        .setMinValue(1)
+                )
         )
         .addSubcommand(sub =>
             sub

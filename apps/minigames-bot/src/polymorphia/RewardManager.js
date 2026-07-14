@@ -4,10 +4,6 @@ const { getRandomFallbackNickname } = require('./fallbackNicknames')
 const { getRandomDuration } = require('./DuelEngine')
 const { applyCooldowns } = require('./CooldownManager')
 
-const DUEL_BET = 50        // Candies each player puts up
-const WINNER_REWARD = 75   // Winner gets 75 (net +25)
-const LOSER_REFUND = 25    // Loser gets 25 back (net -25)
-
 /**
  * Execute the full escrow + reward flow for a polymorphia duel.
  *
@@ -16,15 +12,16 @@ const LOSER_REFUND = 25    // Loser gets 25 back (net -25)
  * @param {object} attackerDb - User DB record (attacker, includes .user relation)
  * @param {object} defenderDb - User DB record (defender, includes .user relation)
  * @param {string} guildId
+ * @param {number} betAmount - Number of candies each player wagered
  * @returns {Promise<object>} Summary
  */
-async function executeRewardFlow(interaction, duelResult, attackerDb, defenderDb, guildId) {
+async function executeRewardFlow(interaction, duelResult, attackerDb, defenderDb, guildId, betAmount) {
     const isAttackerWinner = duelResult.winner === 'attacker'
     const winnerDb = isAttackerWinner ? attackerDb : defenderDb
     const loserDb = isAttackerWinner ? defenderDb : attackerDb
 
-    // Distribute candies (complex business logic kept here)
-    await distributeCandies(winnerDb, loserDb, guildId)
+    // Distribute candies — winner takes both bets, loser loses everything
+    await distributeCandies(winnerDb, loserDb, guildId, betAmount)
 
     // Update duel stats (delegated to database.js)
     await updateDuelStats(winnerDb.id, loserDb.id, duelResult)
@@ -62,65 +59,48 @@ async function executeRewardFlow(interaction, duelResult, attackerDb, defenderDb
     }
 }
 
-async function distributeCandies(winnerDb, loserDb, guildId) {
-    // Get fresh records to have accurate balanceBefore
+async function distributeCandies(winnerDb, loserDb, guildId, betAmount) {
+    // Get fresh records to have accurate balances
     const [freshWinner, freshLoser] = await Promise.all([
         prisma.user.findUnique({ where: { discordId_guildId: { discordId: winnerDb.discordId, guildId } } }),
         prisma.user.findUnique({ where: { discordId_guildId: { discordId: loserDb.discordId, guildId } } })
     ])
 
-    // Round 1: Deduct escrow from both
+    const totalPot = betAmount * 2
+
+    // Single transaction: deduct loser's bet, add both bets to winner
     await prisma.$transaction([
-        prisma.user.update({
-            where: { id: freshWinner.id },
-            data: { candies: { decrement: DUEL_BET } }
-        }),
+        // Loser loses their bet
         prisma.user.update({
             where: { id: freshLoser.id },
-            data: { candies: { decrement: DUEL_BET } }
-        })
-    ])
-
-    // Get balances after escrow deduction
-    const [afterEscrowWinner, afterEscrowLoser] = await Promise.all([
-        prisma.user.findUnique({ where: { id: freshWinner.id } }),
-        prisma.user.findUnique({ where: { id: freshLoser.id } })
-    ])
-
-    // Round 2: Distribute rewards and log transactions
-    await prisma.$transaction([
-        // Winner: receives WINNER_REWARD
+            data: { candies: { decrement: betAmount } }
+        }),
+        // Winner receives the full pot (their own bet back + loser's bet)
         prisma.user.update({
             where: { id: freshWinner.id },
             data: {
-                candies: { increment: WINNER_REWARD },
-                totalEarned: { increment: WINNER_REWARD }
+                candies: { increment: totalPot },
+                totalEarned: { increment: betAmount }
             }
         }),
+        // Transaction log for winner
         prisma.transaction.create({
             data: {
                 userId: freshWinner.id,
                 type: 'earn',
-                amount: WINNER_REWARD,
-                balanceAfter: afterEscrowWinner.candies + WINNER_REWARD,
-                description: `Ganó duelo de Polymorphia vs ${loserDb.username} (neto +${WINNER_REWARD - DUEL_BET})`
+                amount: totalPot,
+                balanceAfter: freshWinner.candies + totalPot,
+                description: `Ganó duelo de Polymorphia vs ${loserDb.username} (+${betAmount} neto)`
             }
         }),
-        // Loser: receives LOSER_REFUND
-        prisma.user.update({
-            where: { id: freshLoser.id },
-            data: {
-                candies: { increment: LOSER_REFUND },
-                totalEarned: { increment: LOSER_REFUND }
-            }
-        }),
+        // Transaction log for loser
         prisma.transaction.create({
             data: {
                 userId: freshLoser.id,
-                type: 'earn',
-                amount: LOSER_REFUND,
-                balanceAfter: afterEscrowLoser.candies + LOSER_REFUND,
-                description: `Reembolso de duelo de Polymorphia vs ${winnerDb.username} (neto -${DUEL_BET - LOSER_REFUND})`
+                type: 'spend',
+                amount: -betAmount,
+                balanceAfter: freshLoser.candies - betAmount,
+                description: `Perdió duelo de Polymorphia vs ${winnerDb.username} (-${betAmount})`
             }
         })
     ])
@@ -188,9 +168,6 @@ async function applyPolymorphia(interaction, targetDiscordId, guildId) {
 }
 
 module.exports = {
-    DUEL_BET,
-    WINNER_REWARD,
-    LOSER_REFUND,
     executeRewardFlow,
     distributeCandies,
     updateDuelStats,

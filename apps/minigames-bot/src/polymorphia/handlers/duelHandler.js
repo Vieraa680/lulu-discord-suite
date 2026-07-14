@@ -8,7 +8,7 @@ const {
 const { findUserByDiscord } = require('#services/database')
 const { resolveDuel, getDefenseItemConfig, getRandomDuration } = require('../DuelEngine')
 const { canInitiateDuel, canBeTargeted } = require('../CooldownManager')
-const { executeRewardFlow, DUEL_BET } = require('../RewardManager')
+const { executeRewardFlow } = require('../RewardManager')
 const { getOwnedDefenseItems, consumeItem } = require('../ItemDefense')
 const { getOrCreateUser } = require('#services/database')
 const { progressBar, relativeTimestamp } = require('../utils')
@@ -46,6 +46,15 @@ async function handleDuel(interaction, client) {
     const guildId = interaction.guild.id
     const challengerId = interaction.user.id
     const targetId = target.id
+    const betAmount = interaction.options.getInteger('bet')
+
+    if (!betAmount || betAmount < 1) {
+        await interaction.reply({
+            content: 'Debes especificar una cantidad válida de gominolas a apostar (mínimo 1).',
+            ephemeral: true
+        })
+        return
+    }
 
     // Check for existing active duel
     const duelKey = makeDuelKey(challengerId, targetId)
@@ -100,16 +109,16 @@ async function handleDuel(interaction, client) {
         return
     }
 
-    // ── Candy check (both must have >= DUEL_BET) ──
-    if (challengerDb.candies < DUEL_BET) {
+    // ── Candy check (both must have >= betAmount) ──
+    if (challengerDb.candies < betAmount) {
         await interaction.editReply(
-            `Necesitas al menos **${DUEL_BET} gominolas** para iniciar un duelo de Polymorphia. Tienes ${challengerDb.candies}.`
+            `Necesitas al menos **${betAmount} gominolas** para apostar esa cantidad. Tienes ${challengerDb.candies}.`
         )
         return
     }
-    if (targetDb.candies < DUEL_BET) {
+    if (targetDb.candies < betAmount) {
         await interaction.editReply(
-            `${target} necesita al menos **${DUEL_BET} gominolas** para aceptar un duelo. Solo tiene ${targetDb.candies}.`
+            `${target} necesita al menos **${betAmount} gominolas** para aceptar un duelo con esa apuesta. Solo tiene ${targetDb.candies}.`
         )
         return
     }
@@ -123,14 +132,15 @@ async function handleDuel(interaction, client) {
     const targetVetSuffix = targetVetBonus > 0 ? ' — Veterano' : ''
 
     // ── Send challenge embed ──
+    const totalPot = betAmount * 2
     const challengeEmbed = new EmbedBuilder()
         .setAuthor({ name: 'Duelo de Polymorphia', iconURL: interaction.user.displayAvatarURL({ dynamic: true, size: 128 }) })
         .setTitle('¡Desafío de Duelo Polymorphia!')
         .setDescription(
             `${interaction.user} ha desafiado a ${target} a un duelo de Polymorphia!\n\n` +
-            `**Apuesta:** ${DUEL_BET} gominolas cada uno\n` +
-            `**Ganador recibe:** **${DUEL_BET + 25}** (neto +25)\n` +
-            `**Perdedor recupera:** **25** (neto -25)\n\n` +
+            `**Apuesta:** **${betAmount}** gominolas cada uno\n` +
+            `**Ganador se lleva todo:** **${totalPot}** gominolas\n` +
+            `**Perdedor pierde todo** (-${betAmount})\n\n` +
             `*¡El perdedor será polimorfizado en un campeón de League of Legends!*`
         )
         .addFields(
@@ -174,6 +184,7 @@ async function handleDuel(interaction, client) {
         challengerDb,
         targetDb,
         guildId,
+        betAmount,
         challengeMsg,
         interaction,
         status: 'pending', // pending | accepted | rejected | expired
@@ -353,7 +364,7 @@ async function handleDefenseButton(interaction) {
  * Resolve the duel and execute the reward flow.
  */
 async function resolveAndComplete(interaction, session) {
-    const { challengerId, targetId, challengerDb, targetDb, guildId, defenseItem } = session
+    const { challengerId, targetId, challengerDb, targetDb, guildId, defenseItem, betAmount } = session
     const duelKey = makeDuelKey(challengerId, targetId)
 
     // Mark as resolved
@@ -389,7 +400,8 @@ async function resolveAndComplete(interaction, session) {
         duelResult,
         freshAttacker || challengerDb,
         freshDefender || targetDb,
-        guildId
+        guildId,
+        betAmount
     )
 
     // Consume defense item if used
@@ -429,8 +441,8 @@ async function resolveAndComplete(interaction, session) {
             {
                 name: 'Recompensas',
                 value: [
-                    `**Ganador:** **+${DUEL_BET + 25}** (neto +25)`,
-                    `**Perdedor:** **+25** reembolso (neto -25)`
+                    `**Ganador:** **+${betAmount * 2}** (neto +${betAmount})`,
+                    `**Perdedor:** **-${betAmount}** (pierde todo)`
                 ].join('\n'),
                 inline: false
             }
