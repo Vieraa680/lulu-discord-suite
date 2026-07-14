@@ -39,6 +39,7 @@ async function executeRewardFlow(interaction, duelResult, attackerDb, defenderDb
     await incrementDailyDuelCount(attackerDb.id, isNewDay)
 
     let polymorphiaApplied = false
+    let polymorphiaFailureReason = null
 
     // If attacker won and not blocked by shield, apply polymorphia
     if (isAttackerWinner && !duelResult.blockedByShield) {
@@ -46,7 +47,8 @@ async function executeRewardFlow(interaction, duelResult, attackerDb, defenderDb
             await applyPolymorphia(interaction, loserDb.discordId, guildId)
             polymorphiaApplied = true
         } catch (error) {
-            console.error('[RewardManager] Failed to apply polymorphia:', error.message)
+            polymorphiaFailureReason = error.message
+            console.error(`[Polymorphia Duel] ❌ Error aplicando polimorfia a ${loserDb.username}:`, error.message)
         }
     }
 
@@ -54,6 +56,7 @@ async function executeRewardFlow(interaction, duelResult, attackerDb, defenderDb
         isAttackerWinner,
         blockedByShield: duelResult.blockedByShield || false,
         polymorphiaApplied,
+        polymorphiaFailureReason,
         winnerDb,
         loserDb
     }
@@ -143,10 +146,19 @@ async function updateDuelStats(winnerDbId, loserDbId, duelResult) {
  * @param {object} interaction - Discord interaction
  * @param {string} targetDiscordId - Discord snowflake of the loser
  * @param {string} guildId
+ * @throws {Error} If the nickname cannot be changed due to permissions or hierarchy
  */
 async function applyPolymorphia(interaction, targetDiscordId, guildId) {
-    const member = interaction.options.resolved?.members?.get(targetDiscordId) ||
+    const member = interaction.options?.resolved?.members?.get(targetDiscordId) ||
         await interaction.guild.members.fetch(targetDiscordId)
+
+    // Pre-check: can the bot actually change this member's nickname?
+    if (!member.manageable) {
+        const reason = member.user?.id === interaction.guild?.ownerId
+            ? 'el propietario del servidor está protegido por la magia del gremio'
+            : 'el bot no tiene permiso para cambiar el apodo de este miembro'
+        throw new Error(`No se pudo aplicar la polimorfia: ${reason}`)
+    }
 
     const displayName = member.nickname || member.user.displayName || member.user.username
 

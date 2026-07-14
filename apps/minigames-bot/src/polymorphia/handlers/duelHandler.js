@@ -60,7 +60,7 @@ async function handleDuel(interaction, client) {
 
     await interaction.deferReply()
 
-    // ── Role hierarchy check ──
+    // ── Resolve member ──
     const resolvedMembers = interaction.options.resolved?.members
     const member = resolvedMembers?.get(target.id)
 
@@ -69,18 +69,23 @@ async function handleDuel(interaction, client) {
         return
     }
 
+    // ── Resolve display names ──
+    const challengerName = interaction.member.nickname || interaction.user.displayName || interaction.user.username
+    const targetName = member.nickname || target.displayName || target.username
+
+    // Check if the bot can manage this member's nickname (non-blocking, informational)
     const botMember = interaction.guild.members.me
-    if (botMember.roles.highest.comparePositionTo(member.roles.highest) < 0) {
-        await interaction.editReply(
-            `${target}, your aura is too powerful! I cannot polymorph you ` +
-            'because your highest role is above mine.'
+    const canManageNickname = botMember.roles.highest.comparePositionTo(member.roles.highest) >= 0
+    if (!canManageNickname) {
+        console.log(
+            `[Polymorphia Duel] ⚠️ Aviso — El rango más alto de ${targetName} (${targetId}) ` +
+            `está por encima del rango del bot. El cambio de apodo podría fallar.`
         )
-        return
     }
 
     // ── Get or create user DB records ──
-    const challengerName = interaction.member.nickname || interaction.user.displayName || interaction.user.username
-    const targetName = member.nickname || target.displayName || target.username
+
+    console.log(`[Polymorphia Duel] 🆕 Challenge initiated — Retador: ${challengerName} (${challengerId}) | Desafiado: ${targetName} (${targetId})`)
 
     const [challengerDb, targetDb] = await Promise.all([
         getOrCreateUser(challengerId, guildId, challengerName),
@@ -265,7 +270,6 @@ async function handleDuelButton(interaction) {
 
     if (action === 'polymorphia_accept') {
         session.status = 'accepted'
-        // Show defense selection
         await showDefenseSelection(interaction, session)
     }
 }
@@ -448,29 +452,32 @@ async function resolveAndComplete(interaction, session) {
     if (summary.isAttackerWinner) {
         if (summary.blockedByShield) {
             resultEmbed.setDescription(
-                `**${interaction.user}** won the Polymorphia duel!\n\n` +
-                `But **${interaction.client.users.cache.get(targetId)}'s Escudo de Banshee** ` +
-                '**blocked** the nickname change! The shield shatters but the name stays safe.\n\n' +
-                `*The attacker still takes the gominolas, but the defender keeps their identity.*`
+                `**${winnerUser}** ganó el duelo de Polymorphia!\n\n` +
+                `Pero el **Escudo de Banshee** de **${interaction.client.users.cache.get(targetId)}** ` +
+                '**bloqueó** el cambio de apodo! El escudo se hace trizas pero el nombre se mantiene a salvo.\n\n' +
+                `*El atacante igual se lleva las gominolas, pero el defensor conserva su identidad.*`
             )
         } else if (summary.polymorphiaApplied) {
             resultEmbed.setDescription(
-                `**${interaction.user}** won the Polymorphia duel!\n\n` +
-                `Polymorphia cast on **${interaction.client.users.cache.get(targetId)}**!\n\n` +
-                `*The loser has been transformed into a League of Legends champion.*`
+                `**${winnerUser}** ganó el duelo de Polymorphia!\n\n` +
+                `Polimorfia lanzada sobre **${interaction.client.users.cache.get(targetId)}**!\n\n` +
+                `*El perdedor ha sido transformado en un campeón de League of Legends.*`
             )
         } else {
+            const failDescription = summary.polymorphiaFailureReason
+                ? `*${summary.polymorphiaFailureReason}.*`
+                : '*Una perturbación mágica impidió el cambio de apodo.*'
             resultEmbed.setDescription(
-                `**${interaction.user}** won the Polymorphia duel!\n\n` +
-                `The nickname change failed due to a magical disturbance. ` +
-                `The gominolas are still awarded.`
+                `**${winnerUser}** ganó el duelo de Polymorphia!\n\n` +
+                `${failDescription}\n\n` +
+                `Las gominolas igual fueron otorgadas.`
             )
         }
     } else {
         resultEmbed.setDescription(
-            `**${interaction.client.users.cache.get(targetId)}** resisted the Polymorphia!\n\n` +
-            `The magic rebounds! No one was transformed.\n\n` +
-            `*The defender's gominolas are safe!*`
+            `**${winnerUser}** resistió la Polymorphia!\n\n` +
+            `La magia rebota! Nadie fue transformado.\n\n` +
+            `*Las gominolas del defensor están a salvo!*`
         )
     }
 
