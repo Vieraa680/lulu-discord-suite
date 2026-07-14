@@ -38,16 +38,16 @@ async function handlePolymorphiaInteraction(interaction) {
 
         // Unknown polymorphia interaction
         await interaction.reply({
-            content: 'Unknown interaction. Please try again.',
+            content: 'Interacción desconocida. Intenta de nuevo.',
             ephemeral: true
         })
     } catch (error) {
         console.error('[polymorphiaInteractions] Error:', error.message)
         try {
             if (interaction.replied || interaction.deferred) {
-                await interaction.followUp({ content: 'An error occurred. Please try again.', ephemeral: true })
+                await interaction.followUp({ content: 'Ocurrió un error. Intenta de nuevo.', ephemeral: true })
             } else {
-                await interaction.reply({ content: 'An error occurred. Please try again.', ephemeral: true })
+                await interaction.reply({ content: 'Ocurrió un error. Intenta de nuevo.', ephemeral: true })
             }
         } catch {
             // Ignore follow-up errors
@@ -64,7 +64,7 @@ async function handleShopBuy(interaction) {
     const discordId = interaction.user.id
 
     if (!itemName) {
-        await interaction.reply({ content: 'Invalid item.', ephemeral: true })
+        await interaction.reply({ content: 'Objeto inválido.', ephemeral: true })
         return
     }
 
@@ -74,9 +74,9 @@ async function handleShopBuy(interaction) {
 
     if (result.success) {
         const embed = new EmbedBuilder()
-            .setAuthor({ name: 'Shop Purchase', iconURL: interaction.user.displayAvatarURL({ dynamic: true, size: 128 }) })
-            .setTitle('Purchase Successful!')
-            .setDescription(`You bought **${itemName}**! It has been added to your inventory.`)
+            .setAuthor({ name: 'Compra en Tienda', iconURL: interaction.user.displayAvatarURL({ dynamic: true, size: 128 }) })
+            .setTitle('¡Compra Exitosa!')
+            .setDescription(`Has comprado **${itemName}**! Ha sido añadido a tu inventario.`)
             .setColor(0x2ECC71)
             .setThumbnail(iconifyUrlFromColor('PACKAGE', 0x2ECC71))
             .setTimestamp()
@@ -84,7 +84,7 @@ async function handleShopBuy(interaction) {
         await interaction.editReply({ embeds: [embed] })
     } else {
         await interaction.editReply({
-            content: result.error || 'Purchase failed.'
+            content: result.error || 'Compra fallida.'
         })
     }
 }

@@ -103,7 +103,7 @@ async function distributeCandies(winnerDb, loserDb, guildId) {
                 type: 'earn',
                 amount: WINNER_REWARD,
                 balanceAfter: afterEscrowWinner.candies + WINNER_REWARD,
-                description: `Won Polymorphia duel vs ${loserDb.username} (net +${WINNER_REWARD - DUEL_BET})`
+                description: `Ganó duelo de Polymorphia vs ${loserDb.username} (neto +${WINNER_REWARD - DUEL_BET})`
             }
         }),
         // Loser: receives LOSER_REFUND
@@ -120,7 +120,7 @@ async function distributeCandies(winnerDb, loserDb, guildId) {
                 type: 'earn',
                 amount: LOSER_REFUND,
                 balanceAfter: afterEscrowLoser.candies + LOSER_REFUND,
-                description: `Refund from Polymorphia duel vs ${winnerDb.username} (net -${DUEL_BET - LOSER_REFUND})`
+                description: `Reembolso de duelo de Polymorphia vs ${winnerDb.username} (neto -${DUEL_BET - LOSER_REFUND})`
             }
         })
     ])

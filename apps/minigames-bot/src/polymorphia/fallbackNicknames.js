@@ -1,4 +1,5 @@
 const FALLBACK_NICKNAMES = [
+    // ── Estilo 1: Temáticos de LoL (clásico) ──
     'Yuumi la Encantadora',
     'El Puño de Sett',
     'Poro Rey',
@@ -23,7 +24,34 @@ const FALLBACK_NICKNAMES = [
     'El Escudo de Braum',
     'Morgana la Caída',
     'La Sonrisa de Shaco',
-    'El Hielo de Lissandra'
+    'El Hielo de Lissandra',
+
+    // ── Estilo 2: Memes de internet ──
+    '1 like y me bloquean',
+    'Chismes al DM',
+    'Reporto a todos',
+    'Farmeo en la jungla',
+    'Meto pausa',
+    'GG al chat',
+    'Invadeo y me voy',
+    'Hago inting Sion',
+    'Cosmito se la come',
+    'Flash al muro',
+    'Mi abuela juega mejor',
+    'Darius ignicion+fantasmal',
+    'Lux con skin de gato',
+    'Yasuo 0-20',
+
+    // ── Estilo 3: Mashups graciosos ──
+    'Malphite Whatsapp',
+    'Bot Lulu',
+    'Bot Ashe',
+    'Malphite Soporte',
+    'Zed Delivery',
+    'Yuumi Uber',
+    'Ahri Netflix',
+    'Sett Glovo',
+    'Katarina Rappi'
 ]
 
 /**

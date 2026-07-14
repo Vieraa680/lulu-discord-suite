@@ -5,42 +5,42 @@ const { iconifyUrlFromColor } = require('#services/icons')
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('polymorphia')
-        .setDescription('Polymorphia minigame — challenge someone to a polymorphic duel!')
+        .setDescription('Minijuego Polymorphia — desafía a alguien a un duelo polimórfico.')
         .addSubcommand(sub =>
             sub
                 .setName('duel')
-                .setDescription('Challenge someone to a Polymorphia duel')
+                .setDescription('Desafía a alguien a un duelo de Polymorphia')
                 .addUserOption(opt =>
                     opt
                         .setName('target')
-                        .setDescription('The user to challenge')
+                        .setDescription('El usuario a desafiar')
                         .setRequired(true)
                 )
         )
         .addSubcommand(sub =>
             sub
                 .setName('shop')
-                .setDescription('Browse the Polymorphia item shop')
+                .setDescription('Navega por la tienda de objetos de Polymorphia')
         )
         .addSubcommand(sub =>
             sub
                 .setName('inventory')
-                .setDescription('View your owned items')
+                .setDescription('Ver tus objetos en posesión')
                 .addUserOption(opt =>
                     opt
                         .setName('user')
-                        .setDescription('The user to check (defaults to yourself)')
+                        .setDescription('El usuario a consultar (por defecto tú mismo)')
                         .setRequired(false)
                 )
         )
         .addSubcommand(sub =>
             sub
                 .setName('stats')
-                .setDescription('View Polymorphia duel statistics')
+                .setDescription('Ver estadísticas de duelos de Polymorphia')
                 .addUserOption(opt =>
                     opt
                         .setName('user')
-                        .setDescription('The user to check (defaults to yourself)')
+                        .setDescription('El usuario a consultar (por defecto tú mismo)')
                         .setRequired(false)
                 )
         ),
@@ -52,7 +52,7 @@ module.exports = {
             case 'duel':
                 if (!interaction.guild.members.me.permissions.has(PermissionFlagsBits.ManageNicknames)) {
                     await interaction.reply({
-                        content: 'I need the **Manage Nicknames** permission to run Polymorphia! Ask an admin to enable it.',
+                        content: '¡Necesito el permiso **Gestionar Apodos** para ejecutar Polymorphia! Pide a un administrador que lo habilite.',
                         ephemeral: true
                     })
                     return
@@ -74,7 +74,7 @@ module.exports = {
 
             default:
                 await interaction.reply({
-                    content: 'Unknown subcommand. Use `/polymorphia duel @user` to challenge someone.',
+                    content: 'Subcomando desconocido. Usa `/polymorphia duel @usuario` para desafiar a alguien.',
                     ephemeral: true
                 })
         }
@@ -102,17 +102,17 @@ async function handleShop(interaction) {
         ])
 
         if (items.length === 0) {
-            await interaction.editReply('The shop is empty right now. Check back later!')
+            await interaction.editReply('La tienda está vacía ahora mismo. ¡Vuelve más tarde!')
             return
         }
 
         const embed = new EmbedBuilder()
-            .setAuthor({ name: 'Item Shop', iconURL: iconifyUrlFromColor('CANDY', 0x9B59B6) })
-            .setTitle('Polymorphia Defense Shop')
+            .setAuthor({ name: 'Tienda de Objetos', iconURL: iconifyUrlFromColor('CANDY', 0x9B59B6) })
+            .setTitle('Tienda de Defensa Polymorphia')
             .setDescription(
-                `Buy items to defend yourself in Polymorphia duels!\n\n` +
-                `**Your Balance:** **${user.candies}** candies\n` +
-                `*Click a button below to make a purchase.*`
+                `¡Compra objetos para defenderte en duelos de Polymorphia!\n\n` +
+                `**Tu Saldo:** **${user.candies}** gominolas\n` +
+                `*Haz clic en un botón para realizar una compra.*`
             )
             .setColor(0x9B59B6)
             .setThumbnail(iconifyUrlFromColor('SHIELD', 0x9B59B6))
@@ -129,16 +129,16 @@ async function handleShop(interaction) {
             embed.addFields({
                 name: item.name,
                 value: [
-                    `**Price:** ${item.price} candies`,
+                    `**Precio:** ${item.price} gominolas`,
                     `*${item.description || getDefaultDescription(item)}*`,
-                    `**Rarity:** \`${item.rarity.toUpperCase()}\``
+                    `**Rareza:** \`${item.rarity.toUpperCase()}\``
                 ].join('\n'),
                 inline: true
             })
 
             const btn = new ButtonBuilder()
                 .setCustomId(`polymorphia_shop_buy:${item.name}`)
-                .setLabel(`${canAfford ? 'Buy' : 'Locked'}`)
+                .setLabel(`${canAfford ? 'Comprar' : 'Bloqueado'}`)
                 .setStyle(canAfford ? ButtonStyle.Success : ButtonStyle.Secondary)
                 .setDisabled(!canAfford)
 
@@ -156,7 +156,7 @@ async function handleShop(interaction) {
         await interaction.editReply({ embeds: [embed], components: rows })
     } catch (error) {
         console.error('[polymorphia:shop] Error:', error.message)
-        await interaction.editReply('An error occurred while loading the shop. Try again later.')
+        await interaction.editReply('Ocurrió un error al cargar la tienda. Intenta de nuevo más tarde.')
     }
 }
 
@@ -185,14 +185,14 @@ async function handleInventory(interaction) {
 
         if (!user || user.items.length === 0) {
             await interaction.editReply(
-                `${target.id === interaction.user.id ? 'You have' : `${target.username} has`} no items in inventory.`
+                `${target.id === interaction.user.id ? 'No tienes' : `${target.username} no tiene`} objetos en el inventario.`
             )
             return
         }
 
         const embed = new EmbedBuilder()
-            .setAuthor({ name: 'Inventory', iconURL: target.displayAvatarURL({ dynamic: true, size: 128 }) })
-            .setTitle(`${target.username}'s Inventory`)
+            .setAuthor({ name: 'Inventario', iconURL: target.displayAvatarURL({ dynamic: true, size: 128 }) })
+            .setTitle(`Inventario de ${target.username}`)
             .setColor(0x9B59B6)
             .setThumbnail(iconifyUrlFromColor('PACKAGE', 0x9B59B6))
             .setTimestamp()
@@ -209,7 +209,7 @@ async function handleInventory(interaction) {
         await interaction.editReply({ embeds: [embed] })
     } catch (error) {
         console.error('[polymorphia:inventory] Error:', error.message)
-        await interaction.editReply('An error occurred while loading inventory.')
+        await interaction.editReply('Ocurrió un error al cargar el inventario.')
     }
 }
 
@@ -236,7 +236,7 @@ async function handleStats(interaction) {
 
         if (!user) {
             await interaction.editReply(
-                `${target.id === interaction.user.id ? "You don't" : `${target.username} doesn't`} have any Polymorphia stats yet.`
+                `${target.id === interaction.user.id ? 'No tienes' : `${target.username} no tiene`} estadísticas de Polymorphia todavía.`
             )
             return
         }
@@ -252,17 +252,17 @@ async function handleStats(interaction) {
 
         const statsColor = isPolymorphed ? 0xE74C3C : 0x9B59B6
         const embed = new EmbedBuilder()
-            .setAuthor({ name: `Polymorphia Stats${veteranSuffix}`, iconURL: iconifyUrlFromColor('CHART', statsColor) })
+            .setAuthor({ name: `Estadísticas de Polymorphia${veteranSuffix}`, iconURL: iconifyUrlFromColor('CHART', statsColor) })
             .setTitle(target.username)
             .setColor(statsColor)
             .setThumbnail(target.displayAvatarURL({ dynamic: true, size: 256 }))
             .addFields(
-                { name: 'Wins', value: `**${user.polymorphiaWins}**`, inline: true },
-                { name: 'Losses', value: `**${user.polymorphiaLosses}**`, inline: true },
-                { name: 'Defended', value: `**${user.polymorphiaSaved}**`, inline: true },
+                { name: 'Victorias', value: `**${user.polymorphiaWins}**`, inline: true },
+                { name: 'Derrotas', value: `**${user.polymorphiaLosses}**`, inline: true },
+                { name: 'Defensas', value: `**${user.polymorphiaSaved}**`, inline: true },
                 { name: 'Win Rate', value: `**${winRate}%** (${totalDuels} total)`, inline: true },
-                { name: 'Candies', value: `**${user.candies}**`, inline: true },
-                { name: 'Total Earned', value: `**${user.totalEarned}**`, inline: true }
+                { name: 'Gominolas', value: `**${user.candies}**`, inline: true },
+                { name: 'Total Ganado', value: `**${user.totalEarned}**`, inline: true }
             )
 
         // ── Active polymorphia state ──
@@ -271,12 +271,12 @@ async function handleStats(interaction) {
             const total = s.endsAt.getTime() - s.startedAt.getTime()
             const elapsed = now - s.startedAt.getTime()
             embed.addFields({
-                name: '⚡ Currently Polymorphed',
+                name: '⚡ Actualmente Polimorfizado',
                 value: [
-                    `**Form:** ${s.currentForm}`,
-                    `**Duration:** ${progressBar(elapsed, total)}`,
-                    `**Expires:** ${relativeTimestamp(s.endsAt)}`,
-                    `**Started:** ${s.previousNickname} → **${s.currentForm}**`
+                    `**Forma:** ${s.currentForm}`,
+                    `**Duración:** ${progressBar(elapsed, total)}`,
+                    `**Expira:** ${relativeTimestamp(s.endsAt)}`,
+                    `**Inicio:** ${s.previousNickname} → **${s.currentForm}**`
                 ].join('\n'),
                 inline: false
             })
@@ -291,27 +291,27 @@ async function handleStats(interaction) {
                 if (elapsed < DUEL_COOLDOWN_MS) {
                     const remaining = DUEL_COOLDOWN_MS - elapsed
                     cooldownLines.push(
-                        `**Duel Cooldown:** ${cooldownBar(remaining, DUEL_COOLDOWN_MS)}`
+                        `**Enfriamiento de Duelo:** ${cooldownBar(remaining, DUEL_COOLDOWN_MS)}`
                     )
                 } else {
-                    cooldownLines.push('**Duel Ready** — You can initiate a duel!')
+                    cooldownLines.push('**Duelo Listo** — ¡Puedes iniciar un duelo!')
                 }
             } else {
-                cooldownLines.push('**Duel Ready** — You can initiate a duel!')
+                cooldownLines.push('**Duelo Listo** — ¡Puedes iniciar un duelo!')
             }
 
             if (user.polymorphiaProtectedUntil) {
                 const remaining = user.polymorphiaProtectedUntil.getTime() - Date.now()
                 if (remaining > 0) {
                     cooldownLines.push(
-                        `**Protected:** ${cooldownBar(remaining, PROTECTION_MS)}`
+                        `**Protegido:** ${cooldownBar(remaining, PROTECTION_MS)}`
                     )
                 }
             }
 
             if (cooldownLines.length > 0) {
                 embed.addFields({
-                    name: 'Cooldown Status',
+                    name: 'Estado de Enfriamiento',
                     value: cooldownLines.join('\n'),
                     inline: false
                 })
@@ -323,17 +323,18 @@ async function handleStats(interaction) {
         await interaction.editReply({ embeds: [embed] })
     } catch (error) {
         console.error('[polymorphia:stats] Error:', error.message)
-        await interaction.editReply('An error occurred while loading stats.')
+        await interaction.editReply('Ocurrió un error al cargar las estadísticas.')
     }
 }
 
 function getDefaultDescription(item) {
     const descriptions = {
-        'Escudo de Banshee': '50% chance to block a polymorphia nickname change. Consumed on use.',
-        'Cetro de Cristal': 'Halves polymorphia duration and grants +1 to defense rolls. Passive.',
-        'Poción de Polvo de Hada': 'Grants +3 to your defense roll in a polymormphia duel. Consumed on use.',
-        'Red de Mariposas': 'Increases butterfly catch range.',
-        'Poción de Polimorfia': 'A mysterious potion with unknown effects.'
+        'Escudo de Banshee': '50% de probabilidad de bloquear el cambio de apodo por polimorfia. Se consume al usarlo.',
+        'Cetro de Cristal': 'Reduce a la mitad la duración de la polimorfia y otorga +1 a las tiradas de defensa. Pasivo.',
+        'Poción de Polvo de Hada': 'Otorga +3 a tu tirada de defensa en un duelo de Polymorphia. Se consume al usarlo.',
+        'Red de Mariposas': 'Aumenta el rango de captura de mariposas.',
+        'Poción de Polimorfia': 'Una poción misteriosa con efectos desconocidos.'
     }
     return descriptions[item.name] || ''
 }
+

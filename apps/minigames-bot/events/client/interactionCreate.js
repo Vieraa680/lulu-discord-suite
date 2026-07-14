@@ -37,7 +37,7 @@ module.exports = {
             console.error(`[interactionCreate] Error executing command "${interaction.commandName}":`, error)
 
             const replyPayload = {
-                content: 'There was an error executing that command. Please try again later.',
+                content: 'Ocurrió un error al ejecutar ese comando. Intenta de nuevo más tarde.',
                 ephemeral: true
             }
 

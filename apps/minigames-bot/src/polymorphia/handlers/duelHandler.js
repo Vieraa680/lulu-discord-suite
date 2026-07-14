@@ -29,7 +29,7 @@ async function handleDuel(interaction, client) {
     // ── Basic validation ──
     if (target.id === interaction.user.id) {
         await interaction.reply({
-            content: 'You cannot challenge yourself to Polymorphia! Choose another summoner.',
+            content: '¡No puedes desafiarte a ti mismo a Polymorphia! Elige otro invocador.',
             ephemeral: true
         })
         return
@@ -37,7 +37,7 @@ async function handleDuel(interaction, client) {
 
     if (target.bot) {
         await interaction.reply({
-            content: 'Bots cannot participate in Polymorphia. Challenge a real summoner!',
+            content: 'Los bots no pueden participar en Polymorphia. ¡Desafía a un invocador de verdad!',
             ephemeral: true
         })
         return
@@ -52,7 +52,7 @@ async function handleDuel(interaction, client) {
     const reverseKey = makeDuelKey(targetId, challengerId)
     if (activeDuelRequests.has(duelKey) || activeDuelRequests.has(reverseKey)) {
         await interaction.reply({
-            content: 'There is already an active duel between you and this user! Please wait for it to resolve.',
+            content: 'Ya hay un duelo activo entre tú y este usuario. ¡Espera a que se resuelva!',
             ephemeral: true
         })
         return
@@ -65,7 +65,7 @@ async function handleDuel(interaction, client) {
     const member = resolvedMembers?.get(target.id)
 
     if (!member) {
-        await interaction.editReply('Could not find that user in this server.')
+        await interaction.editReply('No se pudo encontrar a ese usuario en este servidor.')
         return
     }
 
@@ -73,19 +73,7 @@ async function handleDuel(interaction, client) {
     const challengerName = interaction.member.nickname || interaction.user.displayName || interaction.user.username
     const targetName = member.nickname || target.displayName || target.username
 
-    // Check if the bot can manage this member's nickname (non-blocking, informational)
-    const botMember = interaction.guild.members.me
-    const canManageNickname = botMember.roles.highest.comparePositionTo(member.roles.highest) >= 0
-    if (!canManageNickname) {
-        console.log(
-            `[Polymorphia Duel] ⚠️ Aviso — El rango más alto de ${targetName} (${targetId}) ` +
-            `está por encima del rango del bot. El cambio de apodo podría fallar.`
-        )
-    }
-
     // ── Get or create user DB records ──
-
-    console.log(`[Polymorphia Duel] 🆕 Challenge initiated — Retador: ${challengerName} (${challengerId}) | Desafiado: ${targetName} (${targetId})`)
 
     const [challengerDb, targetDb] = await Promise.all([
         getOrCreateUser(challengerId, guildId, challengerName),
@@ -96,8 +84,8 @@ async function handleDuel(interaction, client) {
     const cooldownCheck = await canInitiateDuel(challengerId, guildId)
     if (!cooldownCheck.allowed) {
         const msg = cooldownCheck.reason === 'cooldown'
-            ? `You must wait **${cooldownCheck.remainingMinutes} more minute(s)** before starting another Polymorphia duel!`
-            : 'You have reached the daily limit of Polymorphia duels! Try again tomorrow.'
+            ? `Debes esperar **${cooldownCheck.remainingMinutes} minuto(s) más** antes de iniciar otro duelo de Polymorphia.`
+            : 'Has alcanzado el límite diario de duelos de Polymorphia. ¡Inténtalo de nuevo mañana!'
         await interaction.editReply(msg)
         return
     }
@@ -106,8 +94,8 @@ async function handleDuel(interaction, client) {
     const protectionCheck = await canBeTargeted(targetId, guildId)
     if (!protectionCheck.allowed) {
         const msg = protectionCheck.reason === 'protection'
-            ? `${target} is under a protection spell! They can be challenged again <t:${Math.floor(protectionCheck.until.getTime() / 1000)}:R>.`
-            : `${target} is already polymorphed! Wait until the effect expires <t:${Math.floor(protectionCheck.until.getTime() / 1000)}:R>.`
+            ? `${target} está bajo un hechizo de protección. Podrá ser desafiado de nuevo <t:${Math.floor(protectionCheck.until.getTime() / 1000)}:R>.`
+            : `${target} ya está polimorfizado. Espera a que el efecto expire <t:${Math.floor(protectionCheck.until.getTime() / 1000)}:R>.`
         await interaction.editReply(msg)
         return
     }
@@ -115,13 +103,13 @@ async function handleDuel(interaction, client) {
     // ── Candy check (both must have >= DUEL_BET) ──
     if (challengerDb.candies < DUEL_BET) {
         await interaction.editReply(
-            `You need at least **${DUEL_BET} candies** to start a Polymorphia duel! You have ${challengerDb.candies}.`
+            `Necesitas al menos **${DUEL_BET} gominolas** para iniciar un duelo de Polymorphia. Tienes ${challengerDb.candies}.`
         )
         return
     }
     if (targetDb.candies < DUEL_BET) {
         await interaction.editReply(
-            `${target} needs at least **${DUEL_BET} candies** to accept a duel. They only have ${targetDb.candies}.`
+            `${target} necesita al menos **${DUEL_BET} gominolas** para aceptar un duelo. Solo tiene ${targetDb.candies}.`
         )
         return
     }
@@ -131,45 +119,45 @@ async function handleDuel(interaction, client) {
         checkVeteranRole(interaction.guild, challengerId),
         checkVeteranRole(interaction.guild, targetId)
     ])
-    const challengerVetSuffix = challengerVetBonus > 0 ? ' — Veteran' : ''
-    const targetVetSuffix = targetVetBonus > 0 ? ' — Veteran' : ''
+    const challengerVetSuffix = challengerVetBonus > 0 ? ' — Veterano' : ''
+    const targetVetSuffix = targetVetBonus > 0 ? ' — Veterano' : ''
 
     // ── Send challenge embed ──
     const challengeEmbed = new EmbedBuilder()
-        .setAuthor({ name: 'Polymorphia Duel', iconURL: interaction.user.displayAvatarURL({ dynamic: true, size: 128 }) })
-        .setTitle('Polymorphia Duel Challenge!')
+        .setAuthor({ name: 'Duelo de Polymorphia', iconURL: interaction.user.displayAvatarURL({ dynamic: true, size: 128 }) })
+        .setTitle('¡Desafío de Duelo Polymorphia!')
         .setDescription(
-            `${interaction.user} has challenged ${target} to a Polymorphia duel!\n\n` +
-            `**Bet:** ${DUEL_BET} candies each\n` +
-            `**Winner takes:** **${DUEL_BET + 25}** (net +25)\n` +
-            `**Loser gets back:** **25** (net -25)\n\n` +
-            `*The loser will be polymorphed into a League of Legends champion!*`
+            `${interaction.user} ha desafiado a ${target} a un duelo de Polymorphia!\n\n` +
+            `**Apuesta:** ${DUEL_BET} gominolas cada uno\n` +
+            `**Ganador recibe:** **${DUEL_BET + 25}** (neto +25)\n` +
+            `**Perdedor recupera:** **25** (neto -25)\n\n` +
+            `*¡El perdedor será polimorfizado en un campeón de League of Legends!*`
         )
         .addFields(
             {
-                name: `Challenger Stats${challengerVetSuffix}`,
-                value: `Wins: **${challengerDb.polymorphiaWins}** | Losses: **${challengerDb.polymorphiaLosses}** | **${challengerDb.candies}** candies`,
+                name: `Estadísticas del Retador${challengerVetSuffix}`,
+                value: `Victorias: **${challengerDb.polymorphiaWins}** | Derrotas: **${challengerDb.polymorphiaLosses}** | **${challengerDb.candies}** gominolas`,
                 inline: true
             },
             {
-                name: `Target Stats${targetVetSuffix}`,
-                value: `Wins: **${targetDb.polymorphiaWins}** | Losses: **${targetDb.polymorphiaLosses}** | **${targetDb.candies}** candies`,
+                name: `Estadísticas del Objetivo${targetVetSuffix}`,
+                value: `Victorias: **${targetDb.polymorphiaWins}** | Derrotas: **${targetDb.polymorphiaLosses}** | **${targetDb.candies}** gominolas`,
                 inline: true
             }
         )
         .setColor(0x9B59B6)
         .setThumbnail(iconifyUrlFromColor('SWORDS', 0x9B59B6))
-        .setFooter({ text: `${target.username} has 60 seconds to accept or reject.` })
+        .setFooter({ text: `${target.username} tiene 60 segundos para aceptar o rechazar.` })
         .setTimestamp()
 
     const acceptBtn = new ButtonBuilder()
         .setCustomId(`polymorphia_accept:${challengerId}:${targetId}`)
-        .setLabel('Accept Duel')
+        .setLabel('Aceptar Duelo')
         .setStyle(ButtonStyle.Success)
 
     const rejectBtn = new ButtonBuilder()
         .setCustomId(`polymorphia_reject:${challengerId}:${targetId}`)
-        .setLabel('Reject')
+        .setLabel('Rechazar')
         .setStyle(ButtonStyle.Danger)
 
     const row = new ActionRowBuilder().addComponents(acceptBtn, rejectBtn)
@@ -202,9 +190,9 @@ async function handleDuel(interaction, client) {
             activeDuelRequests.delete(duelKey)
 
             const expiredEmbed = new EmbedBuilder()
-                .setAuthor({ name: 'Expired', iconURL: iconifyUrlFromColor('ALARM', 0x95A5A6) })
-                .setTitle('Challenge Expired')
-                .setDescription(`${target} did not respond in time. The Polymorphia challenge has expired.`)
+                .setAuthor({ name: 'Expirado', iconURL: iconifyUrlFromColor('ALARM', 0x95A5A6) })
+                .setTitle('Desafío Expirado')
+                .setDescription(`${target} no respondió a tiempo. El desafío de Polymorphia ha expirado.`)
                 .setColor(0x95A5A6)
                 .setThumbnail(iconifyUrlFromColor('CROSS', 0x95A5A6))
                 .setTimestamp()
@@ -230,7 +218,7 @@ async function handleDuelButton(interaction) {
 
     if (!session) {
         await interaction.reply({
-            content: 'This duel request has expired or is no longer valid.',
+            content: 'Esta solicitud de duelo ha expirado o ya no es válida.',
             ephemeral: true
         })
         return
@@ -238,7 +226,7 @@ async function handleDuelButton(interaction) {
 
     if (interaction.user.id !== targetId) {
         await interaction.reply({
-            content: 'Only the challenged user can respond to this duel.',
+            content: 'Solo el usuario desafiado puede responder a este duelo.',
             ephemeral: true
         })
         return
@@ -246,7 +234,7 @@ async function handleDuelButton(interaction) {
 
     if (session.status !== 'pending') {
         await interaction.reply({
-            content: 'This duel has already been resolved.',
+            content: 'Este duelo ya ha sido resuelto.',
             ephemeral: true
         })
         return
@@ -257,9 +245,9 @@ async function handleDuelButton(interaction) {
         activeDuelRequests.delete(duelKey)
 
         const rejectedEmbed = new EmbedBuilder()
-            .setAuthor({ name: 'Rejected', iconURL: interaction.user.displayAvatarURL({ dynamic: true, size: 128 }) })
-            .setTitle('Duel Rejected')
-            .setDescription(`${interaction.user} has rejected the Polymorphia challenge. No candies were lost.`)
+            .setAuthor({ name: 'Rechazado', iconURL: interaction.user.displayAvatarURL({ dynamic: true, size: 128 }) })
+            .setTitle('Duelo Rechazado')
+            .setDescription(`${interaction.user} ha rechazado el desafío de Polymorphia. No se perdieron gominolas.`)
             .setColor(0xE74C3C)
             .setThumbnail(iconifyUrlFromColor('CROSS', 0xE74C3C))
             .setTimestamp()
@@ -284,11 +272,11 @@ async function showDefenseSelection(interaction, session) {
     const ownedItems = await getOwnedDefenseItems(defenderId, guildId)
 
     const defenseEmbed = new EmbedBuilder()
-        .setAuthor({ name: 'Defense Phase', iconURL: interaction.user.displayAvatarURL({ dynamic: true, size: 128 }) })
-        .setTitle('Choose Your Defense')
+        .setAuthor({ name: 'Fase de Defensa', iconURL: interaction.user.displayAvatarURL({ dynamic: true, size: 128 }) })
+        .setTitle('Elige Tu Defensa')
         .setDescription(
-            `${interaction.user}, the Polymorphia duel has been accepted!\n\n` +
-            'Choose your defense strategy. You have **20 seconds**.'
+            `${interaction.user}, ¡el duelo de Polymorphia ha sido aceptado!\n\n` +
+            'Elige tu estrategia de defensa. Tienes **20 segundos**.'
         )
         .setColor(0x3498DB)
         .setThumbnail(iconifyUrlFromColor('SHIELD', 0x3498DB))
@@ -298,7 +286,7 @@ async function showDefenseSelection(interaction, session) {
     row.addComponents(
         new ButtonBuilder()
             .setCustomId(`polymorphia_defense:none:${challengerId}:${targetId}`)
-            .setLabel('No Defense (flat roll)')
+            .setLabel('Sin Defensa (tirada plana)')
             .setStyle(ButtonStyle.Secondary)
     )
 
@@ -340,7 +328,7 @@ async function handleDefenseButton(interaction) {
 
     if (!session || session.status !== 'accepted') {
         await interaction.reply({
-            content: 'This defense selection is no longer valid.',
+            content: 'Esta selección de defensa ya no es válida.',
             ephemeral: true
         })
         return
@@ -348,7 +336,7 @@ async function handleDefenseButton(interaction) {
 
     if (interaction.user.id !== targetId) {
         await interaction.reply({
-            content: 'Only the defender can choose a defense.',
+            content: 'Solo el defensor puede elegir una defensa.',
             ephemeral: true
         })
         return
@@ -421,28 +409,28 @@ async function resolveAndComplete(interaction, session) {
 
     const resultEmbed = new EmbedBuilder()
         .setAuthor({
-            name: summary.isAttackerWinner ? 'Attacker Victorious' : 'Defender Prevails',
+            name: summary.isAttackerWinner ? 'Atacante Victorioso' : 'Defensor Prevalece',
             iconURL: winnerAvatar
         })
-        .setTitle(summary.isAttackerWinner ? 'Polymorphia — Attacker Wins!' : 'Polymorphia — Defender Prevails!')
+        .setTitle(summary.isAttackerWinner ? '¡Polymorphia — Atacante Gana!' : '¡Polymorphia — Defensor Prevalece!')
         .setColor(resultColor)
         .setThumbnail(iconifyUrlFromColor(resultIcon, resultColor))
         .addFields(
             {
-                name: 'Rolls',
+                name: 'Tiradas',
                 value: [
-                    `**Attacker:** \`${duelResult.attackerRoll}\` (d20 + ${duelResult.attackerModifier})`,
+                    `**Atacante:** \`${duelResult.attackerRoll}\` (d20 + ${duelResult.attackerModifier})`,
                     `${progressBar(duelResult.attackerRoll, 20 + duelResult.attackerModifier, 8)}`,
-                    `**Defender:** \`${duelResult.defenderRoll}\` (d20 + ${duelResult.defenderModifier})`,
+                    `**Defensor:** \`${duelResult.defenderRoll}\` (d20 + ${duelResult.defenderModifier})`,
                     `${progressBar(duelResult.defenderRoll, 20 + duelResult.defenderModifier, 8)}`
                 ].join('\n'),
                 inline: false
             },
             {
-                name: 'Rewards',
+                name: 'Recompensas',
                 value: [
-                    `**Winner:** **+${DUEL_BET + 25}** (net +25)`,
-                    `**Loser:** **+25** refund (net -25)`
+                    `**Ganador:** **+${DUEL_BET + 25}** (neto +25)`,
+                    `**Perdedor:** **+25** reembolso (neto -25)`
                 ].join('\n'),
                 inline: false
             }

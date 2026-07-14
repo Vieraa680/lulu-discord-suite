@@ -89,6 +89,8 @@ function resolveDuel(attackerStats, defenderStats, defenseItemName) {
     const rawAttackerRoll = rollD20()
     const rawDefenderRoll = rollD20()
 
+    console.log(`[Polymorphia Duel] 🎲 Dados — Atacante: dado=${rawAttackerRoll} + mod=${attackerMod} = ${rawAttackerRoll + attackerMod} | Defensor: dado=${rawDefenderRoll} + mod=${defenderMod} = ${rawDefenderRoll + defenderMod}`)
+
     const attackerTotal = rawAttackerRoll + attackerMod
     const defenderTotal = rawDefenderRoll + defenderMod
 
