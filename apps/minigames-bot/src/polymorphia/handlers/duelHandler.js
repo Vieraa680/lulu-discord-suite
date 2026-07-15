@@ -5,10 +5,10 @@ const {
     ButtonStyle,
     PermissionFlagsBits
 } = require('discord.js')
-const { findUserByDiscord } = require('#services/database')
+const { findUserByDiscord, prisma, incrementDailyDuelCount } = require('#services/database')
 const { resolveDuel, getDefenseItemConfig, getRandomDuration } = require('../DuelEngine')
 const { canInitiateDuel, canBeTargeted } = require('../CooldownManager')
-const { executeRewardFlow } = require('../RewardManager')
+const { executeRewardFlow, applyPolymorphia } = require('../RewardManager')
 const { getOwnedDefenseItems, consumeItem } = require('../ItemDefense')
 const { getOrCreateUser } = require('#services/database')
 const { progressBar, relativeTimestamp } = require('../utils')
@@ -33,6 +33,10 @@ async function handleDuel(interaction, client) {
             ephemeral: true
         })
         return
+    }
+
+    if (target.id === client.user.id) {
+        return await handleBotDuel(interaction, client)
     }
 
     if (target.bot) {
@@ -482,6 +486,189 @@ async function resolveAndComplete(interaction, session) {
     }
 
     await interaction.editReply({ embeds: [resultEmbed], components: [] })
+}
+
+async function handleBotDuel(interaction, client) {
+    const betAmount = interaction.options.getInteger('bet')
+    const guildId = interaction.guild.id
+    const playerId = interaction.user.id
+
+    if (!betAmount || betAmount < 1) {
+        await interaction.reply({
+            content: 'Debes especificar una cantidad válida de gominolas a apostar (mínimo 1).',
+            ephemeral: true
+        })
+        return
+    }
+
+    await interaction.deferReply()
+
+    const playerName = interaction.member.nickname || interaction.user.displayName || interaction.user.username
+    const playerDb = await getOrCreateUser(playerId, guildId, playerName)
+
+    if (playerDb.candies < betAmount) {
+        await interaction.editReply(
+            `Necesitas al menos **${betAmount} gominolas** para apostar esa cantidad. Tienes ${playerDb.candies}.`
+        )
+        return
+    }
+
+    const cooldownCheck = await canInitiateDuel(playerId, guildId)
+    if (!cooldownCheck.allowed) {
+        const msg = cooldownCheck.reason === 'cooldown'
+            ? `Debes esperar **${cooldownCheck.remainingMinutes} minuto(s) más** antes de otro duelo contra el bot.`
+            : 'Has alcanzado el límite diario de duelos. ¡Inténtalo de nuevo mañana!'
+        await interaction.editReply(msg)
+        return
+    }
+
+    const playerVet = await checkVeteranRole(interaction.guild, playerId)
+
+    const botStats = {
+        polymorphiaWins: 0,
+        polymorphiaLosses: 0,
+        polymorphiaSaved: 0,
+        veteranBonus: 0
+    }
+
+    const playerStats = { ...playerDb, veteranBonus: playerVet }
+
+    const duelResult = resolveDuel(playerStats, botStats, null)
+    const isPlayerWinner = duelResult.winner === 'attacker'
+
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const isNewDay = !playerDb.dailyDuelDate || playerDb.dailyDuelDate < today
+
+    if (isPlayerWinner) {
+        await prisma.$transaction([
+            prisma.user.update({
+                where: { id: playerDb.id },
+                data: {
+                    candies: { increment: betAmount },
+                    totalEarned: { increment: betAmount },
+                    polymorphiaWins: { increment: 1 }
+                }
+            }),
+            prisma.transaction.create({
+                data: {
+                    userId: playerDb.id,
+                    type: 'earn',
+                    amount: betAmount * 2,
+                    balanceAfter: playerDb.candies + betAmount,
+                    description: `Ganó duelo de Polymorphia vs el Bot (+${betAmount} neto)`
+                }
+            }),
+            prisma.user.update({
+                where: { id: playerDb.id },
+                data: {
+                    dailyDuelCount: isNewDay ? 1 : { increment: 1 },
+                    dailyDuelDate: new Date()
+                }
+            })
+        ])
+    } else {
+        await prisma.$transaction([
+            prisma.user.update({
+                where: { id: playerDb.id },
+                data: {
+                    candies: { decrement: betAmount },
+                    totalSpent: { increment: betAmount },
+                    polymorphiaLosses: { increment: 1 }
+                }
+            }),
+            prisma.transaction.create({
+                data: {
+                    userId: playerDb.id,
+                    type: 'spend',
+                    amount: -betAmount,
+                    balanceAfter: playerDb.candies - betAmount,
+                    description: `Perdió duelo de Polymorphia vs el Bot (-${betAmount})`
+                }
+            }),
+            prisma.user.update({
+                where: { id: playerDb.id },
+                data: {
+                    dailyDuelCount: isNewDay ? 1 : { increment: 1 },
+                    dailyDuelDate: new Date()
+                }
+            })
+        ])
+    }
+
+    let polymorphiaApplied = false
+    let polymorphiaFailureReason = null
+
+    if (!isPlayerWinner) {
+        try {
+            await applyPolymorphia(interaction, playerId, guildId)
+            polymorphiaApplied = true
+        } catch (error) {
+            polymorphiaFailureReason = error.message
+            console.error(`[Bot Duel] ❌ Error aplicando polimorfia a ${playerName}:`, error.message)
+        }
+    }
+
+    const botUser = client.user
+    const playerUser = interaction.user
+
+    const resultColor = isPlayerWinner ? 0x9B59B6 : 0xE74C3C
+    const resultIcon = isPlayerWinner ? 'TROPHY' : 'CROSS'
+
+    const resultEmbed = new EmbedBuilder()
+        .setAuthor({
+            name: isPlayerWinner ? '¡Victoria!' : 'Derrota',
+            iconURL: playerUser.displayAvatarURL({ dynamic: true, size: 128 })
+        })
+        .setTitle(isPlayerWinner ? '¡Has derrotado al Bot!' : 'El Bot te ha derrotado')
+        .setColor(resultColor)
+        .setThumbnail(iconifyUrlFromColor(resultIcon, resultColor))
+        .addFields(
+            {
+                name: 'Tiradas',
+                value: [
+                    `**${playerUser.username} (tú):** \`${duelResult.attackerRoll}\` (d20 + ${duelResult.attackerModifier})`,
+                    `${progressBar(duelResult.attackerRoll, 20 + duelResult.attackerModifier, 8)}`,
+                    `**${botUser.username} (bot):** \`${duelResult.defenderRoll}\` (d20 + ${duelResult.defenderModifier})`,
+                    `${progressBar(duelResult.defenderRoll, 20 + duelResult.defenderModifier, 8)}`
+                ].join('\n'),
+                inline: false
+            },
+            {
+                name: 'Resultado',
+                value: isPlayerWinner
+                    ? `🎉 **Ganaste +${betAmount} gominolas** (neto)!`
+                    : `💔 **Perdiste -${betAmount} gominolas**...`,
+                inline: false
+            }
+        )
+        .setFooter({ text: isPlayerWinner ? '¡El bot te rinde pleitesía!' : '¡Mejor suerte la próxima, invocador!' })
+        .setTimestamp()
+
+    if (!isPlayerWinner) {
+        if (polymorphiaApplied) {
+            resultEmbed.setDescription(
+                `**${botUser}** ha invocado la magia de Polymorphia sobre ti!\n\n` +
+                `*Has sido transformado en un campeón de League of Legends...*`
+            )
+        } else {
+            const failReason = polymorphiaFailureReason
+                ? `*${polymorphiaFailureReason}.*`
+                : '*Una perturbación mágica impidió el cambio de apodo.*'
+            resultEmbed.setDescription(
+                `**${botUser}** ganó el duelo!\n\n` +
+                `${failReason}\n\n` +
+                `Las gominolas igual fueron cobradas.`
+            )
+        }
+    } else {
+        resultEmbed.setDescription(
+            `**${playerUser}** ha demostrado ser más poderoso que el bot!\n\n` +
+            `La magia rebota y el bot escapa ileso — esta vez tu nombre está a salvo.`
+        )
+    }
+
+    await interaction.editReply({ embeds: [resultEmbed] })
 }
 
 /**

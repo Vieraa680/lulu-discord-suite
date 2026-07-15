@@ -337,20 +337,20 @@ async function purchaseItem(discordId, guildId, itemName) {
         where: { discordId_guildId: { discordId, guildId } }
     })
     if (!user) {
-        return { success: false, error: 'User not found. Use the bot first to create your profile.' }
+        return { success: false, error: 'Usuario no encontrado. Usa el bot primero para crear tu perfil.' }
     }
 
     const item = await prisma.item.findUnique({ where: { name: itemName } })
     if (!item || !item.isActive) {
-        return { success: false, error: 'That item does not exist or is not available.' }
+        return { success: false, error: 'Ese objeto no existe o no está disponible.' }
     }
     if (item.price <= 0) {
-        return { success: false, error: 'That item cannot be purchased.' }
+        return { success: false, error: 'Ese objeto no se puede comprar.' }
     }
     if (user.candies < item.price) {
         return {
             success: false,
-            error: `You need **${item.price} 🍬 candies** to buy ${item.name}. You have ${user.candies}.`
+            error: `Necesitas **${item.price} 🍬 gominolas** para comprar ${item.name}. Tienes ${user.candies}.`
         }
     }
 
@@ -369,7 +369,7 @@ async function purchaseItem(discordId, guildId, itemName) {
                     type: 'spend',
                     amount: item.price,
                     balanceAfter: user.candies - item.price,
-                    description: `Purchased ${item.name}`,
+                    description: `Compra de ${item.name}`,
                     referenceId: item.id
                 }
             }),
@@ -383,7 +383,7 @@ async function purchaseItem(discordId, guildId, itemName) {
         return { success: true }
     } catch (error) {
         console.error('[database:purchaseItem] Error:', error.message)
-        return { success: false, error: 'An error occurred during purchase. Please try again.' }
+        return { success: false, error: 'Ocurrió un error durante la compra. Intenta de nuevo.' }
     }
 }
 
@@ -402,28 +402,7 @@ const DAILY_LIMIT = 5
  * @returns {Promise<{allowed: boolean, reason?: string, remainingMinutes?: number, limit?: number}>}
  */
 async function canInitiateDuel(discordId, guildId) {
-    const user = await prisma.user.findUnique({
-        where: { discordId_guildId: { discordId, guildId } }
-    })
-    if (!user) return { allowed: true }
-
-    // Cooldown check (10 min)
-    if (user.lastPolymorphiaUse) {
-        const elapsed = Date.now() - user.lastPolymorphiaUse.getTime()
-        if (elapsed < DUEL_COOLDOWN_MS) {
-            const remaining = Math.ceil((DUEL_COOLDOWN_MS - elapsed) / 1000 / 60)
-            return { allowed: false, reason: 'cooldown', remainingMinutes: remaining }
-        }
-    }
-
-    // Daily limit check
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-
-    if (user.dailyDuelDate && user.dailyDuelDate >= today && user.dailyDuelCount >= DAILY_LIMIT) {
-        return { allowed: false, reason: 'daily_limit', limit: DAILY_LIMIT }
-    }
-
+    // TEMP: Restrictions disabled for testing — always allowed
     return { allowed: true }
 }
 
@@ -434,27 +413,7 @@ async function canInitiateDuel(discordId, guildId) {
  * @returns {Promise<{allowed: boolean, reason?: string, until?: Date}>}
  */
 async function canBeTargeted(discordId, guildId) {
-    const user = await prisma.user.findUnique({
-        where: { discordId_guildId: { discordId, guildId } }
-    })
-    if (!user) return { allowed: true }
-
-    // Protection check (4h)
-    if (user.polymorphiaProtectedUntil && user.polymorphiaProtectedUntil > new Date()) {
-        return { allowed: false, reason: 'protection', until: user.polymorphiaProtectedUntil }
-    }
-
-    // Already polymorphed check
-    const activeState = await prisma.polymorphiaState.findFirst({
-        where: {
-            user: { discordId, guildId },
-            isActive: true
-        }
-    })
-    if (activeState) {
-        return { allowed: false, reason: 'already_polymorphed', until: activeState.endsAt }
-    }
-
+    // TEMP: Restrictions disabled for testing — always allowed
     return { allowed: true }
 }
 
@@ -465,17 +424,7 @@ async function canBeTargeted(discordId, guildId) {
  * @param {string} guildId
  */
 async function applyCooldowns(attackerDiscordId, defenderDiscordId, guildId) {
-    const now = new Date()
-
-    await prisma.user.updateMany({
-        where: { discordId: attackerDiscordId, guildId },
-        data: { lastPolymorphiaUse: now }
-    })
-
-    await prisma.user.updateMany({
-        where: { discordId: defenderDiscordId, guildId },
-        data: { polymorphiaProtectedUntil: new Date(now.getTime() + PROTECTION_MS) }
-    })
+    // TEMP: Cooldowns disabled for testing — no-op
 }
 
 /**
