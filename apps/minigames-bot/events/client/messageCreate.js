@@ -4,6 +4,7 @@ const {
     ButtonBuilder,
     ButtonStyle
 } = require('discord.js')
+const { handleOwnerMessage } = require('#services/aiChat')
 
 const MIN_REWARD = 5
 const MAX_REWARD = 15
@@ -51,6 +52,12 @@ module.exports = {
     async execute(message, client) {
         if (message.author.bot) return
         if (!message.guild) return
+
+        // ── Owner-only AI chat ──
+        if (message.mentions.has(client.user) && message.author.id === process.env.OWNER_ID) {
+            await handleOwnerMessage(message, client)
+            return
+        }
 
         if (!client._butterflyCounters) client._butterflyCounters = new Map()
         if (!client._activeButterflies) client._activeButterflies = new Map()
