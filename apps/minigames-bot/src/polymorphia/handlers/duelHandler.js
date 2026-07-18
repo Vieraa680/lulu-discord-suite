@@ -545,13 +545,12 @@ async function handleBotDuel(interaction, client) {
 
     const playerVet = await checkVeteranRole(interaction.guild, playerId)
 
-    const botStats = {
-        polymorphiaWins: 0,
-        polymorphiaLosses: 0,
-        polymorphiaSaved: 0,
-        veteranBonus: 0
-    }
+    // Get or create the bot's own User record so stats persist across duels
+    const botDiscordId = client.user.id
+    const botUsername = client.user.username
+    const botDb = await getOrCreateUser(botDiscordId, guildId, botUsername)
 
+    const botStats = { ...botDb, veteranBonus: 0 }
     const playerStats = { ...playerDb, veteranBonus: playerVet }
 
     const duelResult = resolveBestOfThree(playerStats, botStats, null)
@@ -586,6 +585,10 @@ async function handleBotDuel(interaction, client) {
                     dailyDuelCount: isNewDay ? 1 : { increment: 1 },
                     dailyDuelDate: new Date()
                 }
+            }),
+            prisma.user.update({
+                where: { id: botDb.id },
+                data: { polymorphiaLosses: { increment: 1 } }
             })
         ])
     } else {
@@ -613,6 +616,10 @@ async function handleBotDuel(interaction, client) {
                     dailyDuelCount: isNewDay ? 1 : { increment: 1 },
                     dailyDuelDate: new Date()
                 }
+            }),
+            prisma.user.update({
+                where: { id: botDb.id },
+                data: { polymorphiaWins: { increment: 1 } }
             })
         ])
     }
