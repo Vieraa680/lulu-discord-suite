@@ -5,6 +5,7 @@ const {
     ButtonStyle
 } = require('discord.js')
 const { addCandies } = require('#services/database')
+const { detectGender, g } = require('#utils/gender')
 
 function parseChannelId(customId) {
     const parts = customId.split(':')
@@ -16,7 +17,7 @@ async function handleButterflyCatch(interaction, client) {
 
     if (!channelId) {
         await interaction.reply({
-            content: 'Error al procesar el boton. Intenta con `/catch` en su lugar.',
+            content: 'error con el botón, usá `/catch` mejor',
             ephemeral: true
         })
         return
@@ -25,7 +26,7 @@ async function handleButterflyCatch(interaction, client) {
     const activeButterflies = client._activeButterflies
     if (!activeButterflies) {
         await interaction.reply({
-            content: 'No hay ninguna mariposa activa en este momento.',
+            content: 'no hay ninguna mariposa activa ahora',
             ephemeral: true
         })
         return
@@ -34,7 +35,7 @@ async function handleButterflyCatch(interaction, client) {
     const butterfly = activeButterflies.get(channelId)
     if (!butterfly) {
         await interaction.reply({
-            content: 'No hay ninguna mariposa en este canal. Espera a que aparezca una.',
+            content: 'no hay mariposa en este canal, esperá a que aparezca una',
             ephemeral: true
         })
         return
@@ -42,7 +43,7 @@ async function handleButterflyCatch(interaction, client) {
 
     if (butterfly.caught) {
         await interaction.reply({
-            content: 'Alguien ya atrapo esta mariposa. La proxima vez se mas rapido.',
+            content: 'alguien ya la atrapó, la próxima sé más rápido',
             ephemeral: true
         })
         return
@@ -53,15 +54,16 @@ async function handleButterflyCatch(interaction, client) {
 
     const reward = butterfly.reward
     const tag = interaction.user.toString()
+    const gender = detectGender(interaction.member)
 
     const caughtEmbed = new EmbedBuilder()
-        .setTitle('Mariposa Atrapada!')
+        .setTitle('¡Mariposa Atrapada!')
         .setDescription(
-            `${tag} fue mas rapido que **Pix** y atrapo la Mariposa Morada!\n\n` +
-            `+**${reward} Candies** han sido anadidos a tu saldo.`
+            `${tag} fue más rápid${g(gender, { m: 'o', f: 'a' })} que **Pix** y atrapó la Mariposa Morada!\n\n` +
+            `+**${reward} Candies** añadidos a tu saldo 🍬`
         )
         .setColor(0xA020F0)
-        .setFooter({ text: 'Sigue participando en el chat para que aparezca la siguiente!' })
+        .setFooter({ text: 'seguí chateando para que aparezca otra 👀' })
         .setTimestamp()
 
     const disabledRow = new ActionRowBuilder().addComponents(
@@ -90,7 +92,7 @@ async function handleButterflyCatch(interaction, client) {
             interaction.guildId,
             interaction.user.username,
             reward,
-            'Atrapo una mariposa morada!'
+            'Atrapó una mariposa morada!'
         )
     } catch (error) {
         console.error('[butterflyService] Database error while rewarding:', error.message)
@@ -98,7 +100,7 @@ async function handleButterflyCatch(interaction, client) {
 
     try {
         await interaction.followUp({
-            content: `Atrapaste la mariposa morada! Ganaste **${reward} Candies**`,
+            content: `atrapaste la mariposa! +**${reward} Candies** 🍬`,
             ephemeral: true
         })
     } catch {

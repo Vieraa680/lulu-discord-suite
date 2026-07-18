@@ -1,5 +1,6 @@
 const DEEPSEEK_API_URL = 'https://api.deepseek.com/v1/chat/completions'
 const DEEPSEEK_MODEL = 'deepseek-chat'
+const { FEMALE_ROLE_NAMES, MALE_ROLE_NAMES } = require('../utils/gender')
 
 const MAX_HISTORY = 30
 const MAX_TOKENS_RESPONSE = 300
@@ -8,6 +9,62 @@ const TEMPERATURE = 0.8
 function isAuthorized(message) {
     const ownerId = process.env.OWNER_ID
     return message.author.id === ownerId || message.author.id === message.guild.ownerId
+}
+
+function getConfiguredGenderRoles(member) {
+    const roles = member?.roles?.cache?.values()
+    if (!roles) return { gender: null, roles: [] }
+
+    const matchedRoles = []
+    let gender = null
+
+    for (const role of roles) {
+        const roleName = role.name.toLowerCase().trim()
+        if (FEMALE_ROLE_NAMES.includes(roleName)) {
+            matchedRoles.push(role.name)
+            gender ??= 'f'
+        }
+        if (MALE_ROLE_NAMES.includes(roleName)) {
+            matchedRoles.push(role.name)
+            gender ??= 'm'
+        }
+    }
+
+    return { gender, roles: matchedRoles }
+}
+
+function buildGenderContext(member) {
+    const { gender, roles } = getConfiguredGenderRoles(member)
+    if (!gender) {
+        return 'género por roles: desconocido; sin roles de género configurados visibles'
+    }
+
+    const genderLabel = gender === 'f' ? 'femenino' : 'masculino'
+
+    return `género por roles: ${genderLabel}; roles de género detectados: ${roles.join(', ')}`
+}
+
+function buildAuthorLabel(message) {
+    const authorName = message?.author?.username || 'alguien'
+
+    return `[Usuario que habla: ${authorName}; ${buildGenderContext(message?.member)}]`
+}
+
+function buildMentionedUsersLabel(message, client) {
+    const mentionedMembers = message?.mentions?.members
+    if (!mentionedMembers || mentionedMembers.size === 0) return ''
+
+    const usersContext = []
+    for (const member of mentionedMembers.values()) {
+        if (member.id === client.user.id) continue
+
+        const displayName = member.displayName || member.user?.username || 'usuario mencionado'
+        usersContext.push(`${displayName} => ${buildGenderContext(member)}`)
+    }
+
+    if (usersContext.length === 0) return ''
+
+    return `[Usuarios mencionados, sin contar al bot: ${usersContext.join(' | ')}]`
 }
 
 function buildSystemPrompt(botName, message) {
@@ -58,6 +115,11 @@ function buildSystemPrompt(botName, message) {
         `El mensaje actual viene del canal **#${channelName}** y quien te habló es **${authorName}**. ` +
         `Si te preguntan cosas como "cuántos somos", "cómo se llama este server", o "en qué canal estamos", ` +
         `podés responder con esta información.${channelsInfo}\n\n` +
+        `Cada mensaje del usuario incluye un contexto interno con el género detectado por roles de quien habla ` +
+        `y, si menciona a otras personas, el género detectado por roles de esos usuarios mencionados. ` +
+        `Si preguntan por el género de un usuario mencionado, usá el contexto de "Usuarios mencionados", ` +
+        `no el de "Usuario que habla". Si el género por roles figura como desconocido, no lo adivines por nombre: ` +
+        `decí que no ves un rol de género configurado para esa persona. Usá esos datos para responder o para hablar con el género gramatical correcto.\n\n` +
 
         `Tu principal utilidad es entretener, conversar, y ayudar con los comandos del bot. ` +
         `Si el dueño te pide, también troleás a sus amigos cambiándoles los apodos. Sos cómplice. 😈\n\n` +
@@ -243,9 +305,11 @@ async function handleMention(message, client) {
         return
     }
 
-    // Prepend author info so the AI knows who's talking
-    const authorLabel = `[Usuario: ${message.author.username}]`
-    history.push({ role: 'user', content: `${authorLabel} ${cleanContent}` })
+    // Prepend author and mentioned users info so the AI knows who's talking and who is referenced
+    const authorLabel = buildAuthorLabel(message)
+    const mentionedUsersLabel = buildMentionedUsersLabel(message, client)
+    const contextLabels = [authorLabel, mentionedUsersLabel].filter(Boolean).join(' ')
+    history.push({ role: 'user', content: `${contextLabels} ${cleanContent}` })
     trimHistory(history)
 
     // Query AI

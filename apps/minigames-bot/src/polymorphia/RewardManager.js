@@ -3,6 +3,7 @@ const { generatePolymorphiaNickname } = require('#services/deepseek')
 const { getRandomFallbackNickname } = require('./fallbackNicknames')
 const { getRandomDuration } = require('./DuelEngine')
 const { applyCooldowns } = require('./CooldownManager')
+const { detectGender, g } = require('#utils/gender')
 
 /**
  * Execute the full escrow + reward flow for a polymorphia duel.
@@ -132,12 +133,15 @@ async function applyPolymorphia(interaction, targetDiscordId, guildId) {
     const member = interaction.options?.resolved?.members?.get(targetDiscordId) ||
         await interaction.guild.members.fetch(targetDiscordId)
 
+    const targetGender = detectGender(member)
+
     // Pre-check: can the bot actually change this member's nickname?
     if (!member.manageable) {
         const reason = member.user?.id === interaction.guild?.ownerId
-            ? 'el propietario del servidor está protegido por la magia del gremio'
-            : 'el bot no tiene permiso para cambiar el apodo de este miembro'
-        throw new Error(`No se pudo aplicar la polimorfia: ${reason}`)
+            ? 'el owner del server está protegido por la magia del gremio'
+            : 'no tengo permiso para cambiarle el nombre'
+        const art = g(targetGender, { m: 'al', f: 'a la' })
+        throw new Error(`no se pudo aplicar la polimorfia a ${art} perdedor${g(targetGender, { m: '', f: 'a' })}: ${reason}`)
     }
 
     const displayName = member.nickname || member.user.displayName || member.user.username

@@ -9,29 +9,29 @@ async function generatePolymorphiaNickname(username) {
     }
 
     const systemPrompt =
-        'Eres un generador de apodos creativos de League of Legends para un minijuego de Discord llamado Polymorphia. ' +
-        'Tu UNICA tarea es generar un solo apodo divertido y creativo basado en un nombre de usuario de Discord. ' +
-        'Los apodos pueden ser de TRES estilos diferentes, mezclados aleatoriamente:\n' +
+        'Sos un generador de apodos de League of Legends para un minijuego de Discord llamado Polymorphia. ' +
+        'Tu UNICA tarea es generar un solo apodo gracioso e informal basado en el nombre de un user de Discord. ' +
+        'Los apodos pueden ser de TRES estilos, mezclados aleatoriamente:\n' +
         '\n' +
-        'Estilo 1 - TEMATICOS DE LOL (clasico): Relacionados con campeones, objetos, habilidades o historias de League of Legends. ' +
+        'Estilo 1 - TEMATICOS DE LOL (clasico): Relacionados con campeones, objetos o historias de LoL. ' +
         'Ejemplos: "Yuumi la Encantadora", "El Puño de Sett", "Poro Rey", "La Estrella de Zoe".\n' +
         '\n' +
-        'Estilo 2 - MEMES DE INTERNET: Frases graciosas virales, tipicas de Discord/LoL en español. ' +
-        'Ejemplos: "1 like y me bloquean", "Chismes al DM", "Reporto a todos", "Farmeo en la jungla de la vida", "Meto pausa", "GG al chat", "Invadeo y me voy", "Cosmito se la come".\n' +
+        'Estilo 2 - MEMES DE INTERNET/DISCORD: Frases graciosas virales de Discord/LoL en español, bien informales. ' +
+        'Ejemplos: "1 like y me bloquean", "Chismes al DM", "Reporto a todos", "Farmeo en la jungla", "Meto pausa", "GG al chat", "Invadeo y me voy", "Cosmito se la come", "Intingueo en ranked", "Jg no gankea", "Supp trolleo", "Mid diff", "Top gap", "Afk en base", "Pego y me voy".\n' +
         '\n' +
-        'Estilo 3 - MASHUPS GRACIOSOS: Combina campeones de LoL con apps, servicios, roles o cosas cotidianas. ' +
-        'Ejemplos: "Malphite Whatsapp", "Bot Lulu", "Bot Ashe", "Malphite Soporte", "Zed Delivery", "Yuumi Uber", "Ahri Netflix", "Sett Glovo", "Katarina Rappi".\n' +
+        'Estilo 3 - MASHUPS GRACIOSOS: Combina campeones de LoL con apps, servicios, roles o cosas cotidianas, bien informal. ' +
+        'Ejemplos: "Malphite Whatsapp", "Bot Lulu", "Bot Ashe", "Malphite Soporte", "Zed Delivery", "Yuumi Uber", "Ahri Netflix", "Sett Glovo", "Katarina Rappi", "Garen PedidosYa", "Darius OnlyFans".\n' +
         '\n' +
         'Reglas:\n' +
-        '- Devuelve SOLO el apodo, nada mas -- sin comillas, sin explicaciones, sin formato.\n' +
-        '- El apodo DEBE tener 32 caracteres o menos (limite de apodos de Discord).\n' +
-        '- Hazlo divertido, tematico y unico cada vez.\n' +
-        '- Escribelo SIEMPRE EN ESPANOL.\n' +
-        '- NUNCA uses a Teemo. Jamas. Teemo esta prohibido.\n' +
-        '- Varía entre muchos campeones diferentes: Yuumi, Poro, Lux, Garen, Ahri, Sett, Jinx, Ekko, Zoe, Lulu, etc.\n' +
-        '- NUNCA repitas el mismo apodo ni el mismo campeon para diferentes usuarios.'
+        '- Devolvé SOLO el apodo, nada mas -- sin comillas, sin explicaciones, sin formato.\n' +
+        '- El apodo DEBE tener 32 caracteres o menos (limite de Discord).\n' +
+        '- Hacelo gracioso, bien de Discord, único cada vez.\n' +
+        '- Escribilo SIEMPRE EN ESPAÑOL informal.\n' +
+        '- NUNCA uses a Teemo. Jamás. Teemo está prohibido.\n' +
+        '- Variá entre muchos campeones diferentes: Yuumi, Poro, Lux, Garen, Ahri, Sett, Jinx, Ekko, Zoe, Lulu, etc.\n' +
+        '- NUNCA repitas el mismo apodo ni el mismo campeón para diferentes usuarios.'
 
-    const userPrompt = `Genera un apodo de polymorphia tematico de League of Legends para el usuario de Discord "${username}".`
+    const userPrompt = `Tirate un apodo de Polymorphia bien gracioso e informal para ${username} de Discord.`
 
     const payload = {
         model: DEEPSEEK_MODEL,

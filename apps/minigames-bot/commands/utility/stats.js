@@ -16,47 +16,47 @@ const LEADERBOARD_CATEGORIES = {
     candies: {
         label: 'Gominolas',
         emoji: '🍬',
-        description: 'Usuarios con más gominolas en su saldo'
+        description: 'Users con más gominolas en su saldo'
     },
     totalEarned: {
         label: 'Ganado (Total)',
         emoji: '💰',
-        description: 'Usuarios que más gominolas han ganado en total'
+        description: 'Users que más gominolas ganaron'
     },
     polymorphiaWins: {
-        label: 'Victorias Polymorphia',
+        label: 'Wins Polymorphia',
         emoji: '🏆',
-        description: 'Usuarios con más victorias en duelos de Polymorphia'
+        description: 'Users con más wins en duelos de Polymorphia'
     },
     polymorphiaSaved: {
         label: 'Defensas Exitosas',
         emoji: '🛡️',
-        description: 'Usuarios con más defensas exitosas en Polymorphia'
+        description: 'Users con más defensas exitosas en Polymorphia'
     }
 }
 
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('stats')
-        .setDescription('Estadísticas globales del servidor y leaderboards.')
+        .setDescription('Stats del server y leaderboards.')
         .addSubcommand(sub =>
             sub
                 .setName('server')
-                .setDescription('Muestra estadísticas generales del servidor en Lulu.')
+                .setDescription('Muestra stats generales del server.')
         )
         .addSubcommand(sub =>
             sub
                 .setName('leaderboard')
-                .setDescription('Muestra el top de usuarios por categoría.')
+                .setDescription('Muestra el top de users por categoría.')
                 .addStringOption(opt =>
                     opt
                         .setName('categoria')
-                        .setDescription('Categoría del leaderboard')
+                        .setDescription('Categoría')
                         .setRequired(true)
                         .addChoices(
                             { name: '🍬 Gominolas', value: 'candies' },
                             { name: '💰 Total Ganado', value: 'totalEarned' },
-                            { name: '🏆 Victorias Polymorphia', value: 'polymorphiaWins' },
+                            { name: '🏆 Wins Polymorphia', value: 'polymorphiaWins' },
                             { name: '🛡️ Defensas Exitosas', value: 'polymorphiaSaved' }
                         )
                 )
@@ -74,7 +74,7 @@ module.exports = {
                 break
             default:
                 await interaction.reply({
-                    content: 'Subcomando desconocido. Usa `/stats server` o `/stats leaderboard`.',
+                    content: 'subcomando desconocido, usá `/stats server` o `/stats leaderboard`',
                     ephemeral: true
                 })
         }
@@ -97,28 +97,28 @@ async function handleServerStats(interaction) {
             `**Total en Circulación:** ${formatNumber(stats.totalCandiesInEconomy)} 🍬`,
             `**Total Ganado:** ${formatNumber(stats.totalEarned)} 🍬`,
             `**Total Gastado:** ${formatNumber(stats.totalSpent)} 🍬`,
-            `**Transacciones Registradas:** ${formatNumber(stats.totalTransactions)}`
+            `**Transacciones:** ${formatNumber(stats.totalTransactions)}`
         ].join('\n')
 
         // ── Polymorphia overview ──
         const totalDuels = stats.totalPolymorphiaWins + stats.totalPolymorphiaLosses
         const polymorphiaLines = [
             `**Duelos Totales:** ${formatNumber(totalDuels)}`,
-            `**Victorias (total):** ${formatNumber(stats.totalPolymorphiaWins)} 🏆`,
-            `**Derrotas (total):** ${formatNumber(stats.totalPolymorphiaLosses)} 💔`,
+            `**Wins:** ${formatNumber(stats.totalPolymorphiaWins)} 🏆`,
+            `**Derrotas:** ${formatNumber(stats.totalPolymorphiaLosses)} 💔`,
             `**Defensas Exitosas:** ${formatNumber(stats.totalPolymorphiaSaved)} 🛡️`,
-            `**Actualmente Polimorfizados:** ${formatNumber(stats.activePolymorphiaCount)} ⚡`
+            `**Polimorfizad@s:** ${formatNumber(stats.activePolymorphiaCount)} ⚡`
         ].join('\n')
 
         // ── Activity overview ──
         const activityLines = [
-            `**Usuarios Registrados:** ${formatNumber(stats.totalUsers)} 👥`,
+            `**Users Registrados:** ${formatNumber(stats.totalUsers)} 👥`,
             `**Mariposas Atrapadas:** ${formatNumber(butterflyCount)} 🦋`
         ].join('\n')
 
         const embed = new EmbedBuilder()
             .setAuthor({
-                name: 'Estadísticas del Servidor',
+                name: 'Stats del Server',
             })
             .setColor(0x9B59B6)
             .setThumbnail(iconifyUrlFromColor('CHART', 0x9B59B6))
@@ -132,7 +132,7 @@ async function handleServerStats(interaction) {
         await interaction.editReply({ embeds: [embed] })
     } catch (error) {
         console.error('[stats:server] Error:', error.message)
-        await interaction.editReply('Ocurrió un error al obtener las estadísticas del servidor.')
+        await interaction.editReply('ups, hubo un error al cargar las stats del server')
     }
 }
 
@@ -144,7 +144,7 @@ async function handleLeaderboard(interaction) {
     const meta = LEADERBOARD_CATEGORIES[category]
 
     if (!meta) {
-        await interaction.editReply('Categoría de leaderboard inválida.')
+        await interaction.editReply('categoría inválida, usá una de las opciones del comando')
         return
     }
 
@@ -153,8 +153,8 @@ async function handleLeaderboard(interaction) {
 
         if (topUsers.length === 0) {
             await interaction.editReply(
-                `No hay suficientes datos para mostrar el leaderboard de **${meta.label}** todavía. ` +
-                '¡Participa en los minijuegos para aparecer aquí!'
+                `todavía no hay datos para el leaderboard de **${meta.label}**. ` +
+                '¡jugá minijuegos y aparecé acá!'
             )
             return
         }
@@ -173,7 +173,7 @@ async function handleLeaderboard(interaction) {
 
         const embed = new EmbedBuilder()
             .setAuthor({
-                name: `Leaderboard: ${meta.label}`,
+                name: `Top: ${meta.label}`,
                 iconURL: iconifyUrlFromColor('TROPHY', 0xF1C40F)
             })
             .setTitle(`🏅 Top ${topUsers.length} — ${meta.emoji} ${meta.label}`)
@@ -181,13 +181,13 @@ async function handleLeaderboard(interaction) {
             .setColor(0xF1C40F)
             .setThumbnail(iconifyUrlFromColor('TROPHY', 0xF1C40F))
             .addFields(
-                { name: 'Clasificación', value: leaderboardLines.join('\n'), inline: false }
+                { name: 'Ranking', value: leaderboardLines.join('\n'), inline: false }
             )
             .setTimestamp()
 
         await interaction.editReply({ embeds: [embed] })
     } catch (error) {
         console.error('[stats:leaderboard] Error:', error.message)
-        await interaction.editReply('Ocurrió un error al cargar el leaderboard.')
+        await interaction.editReply('ups, hubo un error al cargar el leaderboard')
     }
 }

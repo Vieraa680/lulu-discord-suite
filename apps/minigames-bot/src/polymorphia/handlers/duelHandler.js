@@ -15,6 +15,7 @@ const { progressBar, relativeTimestamp } = require('../utils')
 const {
     iconifyUrlFromColor
 } = require('#services/icons')
+const { detectGender, g } = require('#utils/gender')
 
 // Active duels map: `challengerId_targetId` -> duel session data
 const activeDuelRequests = new Map()
@@ -25,11 +26,12 @@ const VETERAN_ROLE_NAME = process.env.VETERAN_ROLE_NAME || 'Invocador Veterano'
 
 async function handleDuel(interaction, client) {
     const target = interaction.options.getUser('target')
+    const challengerGender = detectGender(interaction.member)
 
     // ── Basic validation ──
     if (target.id === interaction.user.id) {
         await interaction.reply({
-            content: '¡No puedes desafiarte a ti mismo a Polymorphia! Elige otro invocador.',
+            content: `nah ${interaction.user} no te podés desafiar a vos mism${g(challengerGender, { m: 'o', f: 'a' })} xd buscá a otro`,
             ephemeral: true
         })
         return
@@ -41,7 +43,7 @@ async function handleDuel(interaction, client) {
 
     if (target.bot) {
         await interaction.reply({
-            content: 'Los bots no pueden participar en Polymorphia. ¡Desafía a un invocador de verdad!',
+            content: 'los bots no juegan polymorfa pa, desafiá a alguien de verdad',
             ephemeral: true
         })
         return
@@ -54,7 +56,7 @@ async function handleDuel(interaction, client) {
 
     if (!betAmount || betAmount < 1) {
         await interaction.reply({
-            content: 'Debes especificar una cantidad válida de gominolas a apostar (mínimo 1).',
+            content: 'poné una cantidad de gominolas válida (mínimo 1)',
             ephemeral: true
         })
         return
@@ -65,7 +67,7 @@ async function handleDuel(interaction, client) {
     const reverseKey = makeDuelKey(targetId, challengerId)
     if (activeDuelRequests.has(duelKey) || activeDuelRequests.has(reverseKey)) {
         await interaction.reply({
-            content: 'Ya hay un duelo activo entre tú y este usuario. ¡Espera a que se resuelva!',
+            content: 'ya hay un duelo activo entre ustedes, esperen a que termine',
             ephemeral: true
         })
         return
@@ -78,13 +80,15 @@ async function handleDuel(interaction, client) {
     const member = resolvedMembers?.get(target.id)
 
     if (!member) {
-        await interaction.editReply('No se pudo encontrar a ese usuario en este servidor.')
+        await interaction.editReply('no encontré a ese user en el server, f')
         return
     }
 
     // ── Resolve display names ──
     const challengerName = interaction.member.nickname || interaction.user.displayName || interaction.user.username
     const targetName = member.nickname || target.displayName || target.username
+
+    const targetGender = detectGender(member)
 
     // ── Get or create user DB records ──
 
@@ -97,8 +101,8 @@ async function handleDuel(interaction, client) {
     const cooldownCheck = await canInitiateDuel(challengerId, guildId)
     if (!cooldownCheck.allowed) {
         const msg = cooldownCheck.reason === 'cooldown'
-            ? `Debes esperar **${cooldownCheck.remainingMinutes} minuto(s) más** antes de iniciar otro duelo de Polymorphia.`
-            : 'Has alcanzado el límite diario de duelos de Polymorphia. ¡Inténtalo de nuevo mañana!'
+            ? `tranqui ${interaction.user}, esperá **${cooldownCheck.remainingMinutes} min** más antes de tirar otro duelo`
+            : 'llegaste al límite diario de duelos pa, volvé mañana'
         await interaction.editReply(msg)
         return
     }
@@ -107,8 +111,8 @@ async function handleDuel(interaction, client) {
     const protectionCheck = await canBeTargeted(targetId, guildId)
     if (!protectionCheck.allowed) {
         const msg = protectionCheck.reason === 'protection'
-            ? `${target} está bajo un hechizo de protección. Podrá ser desafiado de nuevo <t:${Math.floor(protectionCheck.until.getTime() / 1000)}:R>.`
-            : `${target} ya está polimorfizado. Espera a que el efecto expire <t:${Math.floor(protectionCheck.until.getTime() / 1000)}:R>.`
+            ? `${target} tiene un hechizo de protección, podés desafiarl${g(targetGender, { m: 'o', f: 'a' })} de nuevo <t:${Math.floor(protectionCheck.until.getTime() / 1000)}:R>`
+            : `${target} ya está polimorfizad${g(targetGender, { m: 'o', f: 'a' })}, esperá a que expire <t:${Math.floor(protectionCheck.until.getTime() / 1000)}:R>`
         await interaction.editReply(msg)
         return
     }
@@ -116,13 +120,13 @@ async function handleDuel(interaction, client) {
     // ── Candy check (both must have >= betAmount) ──
     if (challengerDb.candies < betAmount) {
         await interaction.editReply(
-            `Necesitas al menos **${betAmount} gominolas** para apostar esa cantidad. Tienes ${challengerDb.candies}.`
+            `necesitás **${betAmount} gominolas** para esa apuesta y tenés ${challengerDb.candies} nomás, ${interaction.user}`
         )
         return
     }
     if (targetDb.candies < betAmount) {
         await interaction.editReply(
-            `${target} necesita al menos **${betAmount} gominolas** para aceptar un duelo con esa apuesta. Solo tiene ${targetDb.candies}.`
+            `${target} necesita **${betAmount} gominolas** y solo tiene ${targetDb.candies}, no le da`
         )
         return
     }
@@ -135,39 +139,42 @@ async function handleDuel(interaction, client) {
     const challengerVetSuffix = challengerVetBonus > 0 ? ' — Veterano' : ''
     const targetVetSuffix = targetVetBonus > 0 ? ' — Veterano' : ''
 
+    const challengerLabel = g(challengerGender, { m: 'el', f: 'la' })
+    const targetLabel = g(targetGender, { m: 'al', f: 'a la' })
+
     // ── Send challenge embed ──
     const totalPot = betAmount * 2
     const challengeEmbed = new EmbedBuilder()
         .setAuthor({ name: 'Duelo de Polymorphia', iconURL: interaction.user.displayAvatarURL({ dynamic: true, size: 128 }) })
-        .setTitle('¡Desafío de Duelo Polymorphia!')
+        .setTitle('¡Duelo Polymorphia!')
         .setDescription(
-            `${interaction.user} ha desafiado a ${target} a un duelo de Polymorphia!\n\n` +
-            `**Formato:** Al mejor de **3 rondas** — primero en ganar 2 se lleva la serie\n` +
+            `${interaction.user} desafió a ${target} a un duelo de Polymorphia!\n\n` +
+            `**Formato:** al mejor de **3 rondas** — el que gane 2 se lleva todo\n` +
             `**Apuesta:** **${betAmount}** gominolas cada uno\n` +
-            `**Ganador se lleva todo:** **${totalPot}** gominolas\n` +
-            `**Perdedor pierde todo** (-${betAmount})\n\n` +
-            `*¡El perdedor será polimorfizado en un campeón de League of Legends!*`
+            `**Premio:** **${totalPot}** gominolas\n` +
+            `**Perdedor:** pierde todo (-${betAmount})\n\n` +
+            `*el que pierda queda polimorfizad@ en un campeón de League of Legends*`
         )
         .addFields(
             {
-                name: `Estadísticas del Retador${challengerVetSuffix}`,
-                value: `Victorias: **${challengerDb.polymorphiaWins}** | Derrotas: **${challengerDb.polymorphiaLosses}** | **${challengerDb.candies}** gominolas`,
+                name: `⚔️ ${challengerLabel} retador${g(challengerGender, { m: '', f: 'a' })}${challengerVetSuffix}`,
+                value: `Wins: **${challengerDb.polymorphiaWins}** | Derrotas: **${challengerDb.polymorphiaLosses}** | **${challengerDb.candies}** 🍬`,
                 inline: true
             },
             {
-                name: `Estadísticas del Objetivo${targetVetSuffix}`,
-                value: `Victorias: **${targetDb.polymorphiaWins}** | Derrotas: **${targetDb.polymorphiaLosses}** | **${targetDb.candies}** gominolas`,
+                name: `🛡️ ${targetLabel} objetiv${g(targetGender, { m: 'o', f: 'a' })}${targetVetSuffix}`,
+                value: `Wins: **${targetDb.polymorphiaWins}** | Derrotas: **${targetDb.polymorphiaLosses}** | **${targetDb.candies}** 🍬`,
                 inline: true
             }
         )
         .setColor(0x9B59B6)
         .setThumbnail(iconifyUrlFromColor('SWORDS', 0x9B59B6))
-        .setFooter({ text: `${target.username} tiene 60 segundos para aceptar o rechazar.` })
+        .setFooter({ text: `${target.username} tiene 60 segundos para aceptar o rechazar` })
         .setTimestamp()
 
     const acceptBtn = new ButtonBuilder()
         .setCustomId(`polymorphia_accept:${challengerId}:${targetId}`)
-        .setLabel('Aceptar Duelo')
+        .setLabel('Aceptar')
         .setStyle(ButtonStyle.Success)
 
     const rejectBtn = new ButtonBuilder()
@@ -208,7 +215,7 @@ async function handleDuel(interaction, client) {
             const expiredEmbed = new EmbedBuilder()
                 .setAuthor({ name: 'Expirado', iconURL: iconifyUrlFromColor('ALARM', 0x95A5A6) })
                 .setTitle('Desafío Expirado')
-                .setDescription(`${target} no respondió a tiempo. El desafío de Polymorphia ha expirado.`)
+                .setDescription(`${target} no respondió a tiempo, el duelo expiró`)
                 .setColor(0x95A5A6)
                 .setThumbnail(iconifyUrlFromColor('CROSS', 0x95A5A6))
                 .setTimestamp()
@@ -234,7 +241,7 @@ async function handleDuelButton(interaction) {
 
     if (!session) {
         await interaction.reply({
-            content: 'Esta solicitud de duelo ha expirado o ya no es válida.',
+            content: 'ese duelo ya expiró o no existe',
             ephemeral: true
         })
         return
@@ -242,7 +249,7 @@ async function handleDuelButton(interaction) {
 
     if (interaction.user.id !== targetId) {
         await interaction.reply({
-            content: 'Solo el usuario desafiado puede responder a este duelo.',
+            content: 'solo la persona desafiada puede responder a este duelo',
             ephemeral: true
         })
         return
@@ -250,7 +257,7 @@ async function handleDuelButton(interaction) {
 
     if (session.status !== 'pending') {
         await interaction.reply({
-            content: 'Este duelo ya ha sido resuelto.',
+            content: 'este duelo ya fue resuelto',
             ephemeral: true
         })
         return
@@ -263,7 +270,7 @@ async function handleDuelButton(interaction) {
         const rejectedEmbed = new EmbedBuilder()
             .setAuthor({ name: 'Rechazado', iconURL: interaction.user.displayAvatarURL({ dynamic: true, size: 128 }) })
             .setTitle('Duelo Rechazado')
-            .setDescription(`${interaction.user} ha rechazado el desafío de Polymorphia. No se perdieron gominolas.`)
+            .setDescription(`${interaction.user} rechazó el duelo. No se perdió nada.`)
             .setColor(0xE74C3C)
             .setThumbnail(iconifyUrlFromColor('CROSS', 0xE74C3C))
             .setTimestamp()
@@ -289,10 +296,10 @@ async function showDefenseSelection(interaction, session) {
 
     const defenseEmbed = new EmbedBuilder()
         .setAuthor({ name: 'Fase de Defensa', iconURL: interaction.user.displayAvatarURL({ dynamic: true, size: 128 }) })
-        .setTitle('Elige Tu Defensa')
+        .setTitle('Elegí tu Defensa')
         .setDescription(
-            `${interaction.user}, ¡el duelo de Polymorphia ha sido aceptado!\n\n` +
-            'Elige tu estrategia de defensa. Tienes **20 segundos**.'
+            `${interaction.user}, ¡duelo aceptado!\n\n` +
+            'elegí cómo defenderte, tenés **20 segundos**'
         )
         .setColor(0x3498DB)
         .setThumbnail(iconifyUrlFromColor('SHIELD', 0x3498DB))
@@ -302,7 +309,7 @@ async function showDefenseSelection(interaction, session) {
     row.addComponents(
         new ButtonBuilder()
             .setCustomId(`polymorphia_defense:none:${challengerId}:${targetId}`)
-            .setLabel('Sin Defensa (tirada plana)')
+            .setLabel('Sin Defensa')
             .setStyle(ButtonStyle.Secondary)
     )
 
@@ -344,7 +351,7 @@ async function handleDefenseButton(interaction) {
 
     if (!session || session.status !== 'accepted') {
         await interaction.reply({
-            content: 'Esta selección de defensa ya no es válida.',
+            content: 'esa defensa ya no es válida',
             ephemeral: true
         })
         return
@@ -352,7 +359,7 @@ async function handleDefenseButton(interaction) {
 
     if (interaction.user.id !== targetId) {
         await interaction.reply({
-            content: 'Solo el defensor puede elegir una defensa.',
+            content: 'solo el defensor elige la defensa',
             ephemeral: true
         })
         return
@@ -417,13 +424,19 @@ async function resolveAndComplete(interaction, session) {
         }
     }
 
+    // ── Resolve gender for both players ──
+    const winnerId = summary.isAttackerWinner ? challengerId : targetId
+    const loserId = summary.isAttackerWinner ? targetId : challengerId
+    const winnerMember = interaction.guild.members.cache.get(winnerId)
+    const loserMember = interaction.guild.members.cache.get(loserId)
+    const winnerGender = detectGender(winnerMember)
+    const loserGender = detectGender(loserMember)
+
     // ── Build rich best-of-3 result embed ──
     const resultColor = summary.isAttackerWinner ? 0x9B59B6 : 0x2ECC71
     const resultIcon = summary.isAttackerWinner ? 'TROPHY' : 'SHIELD'
-    const winnerId = summary.isAttackerWinner ? challengerId : targetId
-    const loserId = summary.isAttackerWinner ? targetId : challengerId
-    const winnerUser = interaction.guild.members.cache.get(winnerId)?.user || interaction.client.users.cache.get(winnerId)
-    const loserUser = interaction.guild.members.cache.get(loserId)?.user || interaction.client.users.cache.get(loserId)
+    const winnerUser = winnerMember?.user || interaction.client.users.cache.get(winnerId)
+    const loserUser = loserMember?.user || interaction.client.users.cache.get(loserId)
     const winnerAvatar = winnerUser ? winnerUser.displayAvatarURL({ dynamic: true, size: 128 }) : iconifyUrlFromColor(resultIcon, resultColor)
 
     // Build round-by-round display
@@ -444,6 +457,9 @@ async function resolveAndComplete(interaction, session) {
 
     const scoreText = `**${duelResult.attackerWins}** - **${duelResult.defenderWins}**`
 
+    const winnerLabel = g(winnerGender, { m: 'el', f: 'la' })
+    const loserLabel = g(loserGender, { m: 'el', f: 'la' })
+
     const resultEmbed = new EmbedBuilder()
         .setAuthor({
             name: summary.isAttackerWinner ? '⚔️ Atacante Victorioso' : '🛡️ Defensor Prevalece',
@@ -451,22 +467,22 @@ async function resolveAndComplete(interaction, session) {
         })
         .setTitle(
             summary.isAttackerWinner
-                ? `¡Polymorphia — Atacante Gana ${scoreText}!`
-                : `¡Polymorphia — Defensor Prevalece ${scoreText}!`
+                ? `Polymorphia — ${winnerLabel} atacante gana ${scoreText}!`
+                : `Polymorphia — ${winnerLabel} defensor prevalece ${scoreText}!`
         )
         .setColor(resultColor)
         .setThumbnail(iconifyUrlFromColor(resultIcon, resultColor))
         .addFields(
             {
-                name: `📊 Serie al Mejor de 3 (${scoreText})`,
+                name: `📊 Serie al mejor de 3 (${scoreText})`,
                 value: roundLines,
                 inline: false
             },
             {
                 name: '💰 Recompensas',
                 value: [
-                    `**Ganador:** **+${betAmount * 2}** (neto +${betAmount})`,
-                    `**Perdedor:** **-${betAmount}** (pierde todo)`
+                    `**Ganador:** **+${betAmount * 2}** 🍬 (neto +${betAmount})`,
+                    `**Perdedor:** **-${betAmount}** 🍬 (pierde todo)`
                 ].join('\n'),
                 inline: false
             }
@@ -477,32 +493,32 @@ async function resolveAndComplete(interaction, session) {
     if (summary.isAttackerWinner) {
         if (summary.blockedByShield) {
             resultEmbed.setDescription(
-                `**${winnerUser}** ganó la serie ${scoreText}!\n\n` +
-                `Pero el **Escudo de Banshee** de **${loserUser}** ` +
-                '**bloqueó** el cambio de apodo! El escudo se hace trizas pero el nombre se mantiene a salvo.\n\n' +
-                `*El atacante igual se lleva las gominolas, pero el defensor conserva su identidad.*`
+                `**${winnerUser}** ganó ${scoreText}!\n\n` +
+                `pero **${loserUser}** tenía **Escudo de Banshee** ` +
+                `y bloqueó el cambio de nombre 🛡️ el escudo se hace trizas pero ${loserLabel} salvó\n\n` +
+                `*las gominolas igual van para ${winnerLabel} vencedor${g(winnerGender, { m: '', f: 'a' })}*`
             )
         } else if (summary.polymorphiaApplied) {
             resultEmbed.setDescription(
-                `**${winnerUser}** ganó la serie ${scoreText}!\n\n` +
-                `Polimorfia lanzada sobre **${loserUser}**!\n\n` +
-                `*El perdedor ha sido transformado en un campeón de League of Legends.*`
+                `**${winnerUser}** ganó ${scoreText}!\n\n` +
+                `polimorfia lanzada sobre **${loserUser}**\n\n` +
+                `*${loserLabel} perdedor${g(loserGender, { m: '', f: 'a' })} fue transformad${g(loserGender, { m: 'o', f: 'a' })} en un campeón de League of Legends xd*`
             )
         } else {
             const failDescription = summary.polymorphiaFailureReason
                 ? `*${summary.polymorphiaFailureReason}.*`
-                : '*Una perturbación mágica impidió el cambio de apodo.*'
+                : '*se bugeó la magia y no se pudo cambiar el nombre*'
             resultEmbed.setDescription(
-                `**${winnerUser}** ganó la serie ${scoreText}!\n\n` +
+                `**${winnerUser}** ganó ${scoreText}!\n\n` +
                 `${failDescription}\n\n` +
-                `Las gominolas igual fueron otorgadas.`
+                `las gominolas igual fueron entregadas`
             )
         }
     } else {
         resultEmbed.setDescription(
             `**${winnerUser}** resistió la Polymorphia!\n\n` +
-            `La magia rebota! Nadie fue transformado.\n\n` +
-            `*Las gominolas del defensor están a salvo!*`
+            `la magia rebota, nadie fue transformado\n\n` +
+            `*${loserLabel} atacante perdió ${betAmount} gominolas, F*`
         )
     }
 
@@ -513,10 +529,11 @@ async function handleBotDuel(interaction, client) {
     const betAmount = interaction.options.getInteger('bet')
     const guildId = interaction.guild.id
     const playerId = interaction.user.id
+    const playerGender = detectGender(interaction.member)
 
     if (!betAmount || betAmount < 1) {
         await interaction.reply({
-            content: 'Debes especificar una cantidad válida de gominolas a apostar (mínimo 1).',
+            content: 'poné una cantidad de gominolas válida (mínimo 1)',
             ephemeral: true
         })
         return
@@ -529,7 +546,7 @@ async function handleBotDuel(interaction, client) {
 
     if (playerDb.candies < betAmount) {
         await interaction.editReply(
-            `Necesitas al menos **${betAmount} gominolas** para apostar esa cantidad. Tienes ${playerDb.candies}.`
+            `necesitás **${betAmount} gominolas** y tenés ${playerDb.candies} nomás, ${interaction.user}`
         )
         return
     }
@@ -537,8 +554,8 @@ async function handleBotDuel(interaction, client) {
     const cooldownCheck = await canInitiateDuel(playerId, guildId)
     if (!cooldownCheck.allowed) {
         const msg = cooldownCheck.reason === 'cooldown'
-            ? `Debes esperar **${cooldownCheck.remainingMinutes} minuto(s) más** antes de otro duelo contra el bot.`
-            : 'Has alcanzado el límite diario de duelos. ¡Inténtalo de nuevo mañana!'
+            ? `tranqui ${interaction.user}, esperá **${cooldownCheck.remainingMinutes} min** más antes de otro duelo`
+            : 'llegaste al límite diario, volvé mañana'
         await interaction.editReply(msg)
         return
     }
@@ -643,14 +660,16 @@ async function handleBotDuel(interaction, client) {
     const resultColor = isPlayerWinner ? 0x9B59B6 : 0xE74C3C
     const resultIcon = isPlayerWinner ? 'TROPHY' : 'CROSS'
 
+    const playerArt = g(playerGender, { m: 'el', f: 'la' })
+
     // Build round-by-round display for bot duel
     const roundLines = duelResult.rounds.map((r, i) => {
         const emoji = r.winner === 'attacker' ? '⚔️' : '🛡️'
         return [
             `**Ronda ${i + 1}:**`,
-            `${emoji} Tú: \`${r.attackerRoll}\``,
+            `${emoji} Vos: \`${r.attackerRoll}\``,
             `🤖 Bot: \`${r.defenderRoll}\``,
-            `→ **${r.winner === 'attacker' ? 'Tú' : '🤖 Bot'}**`
+            `→ **${r.winner === 'attacker' ? 'Vos' : '🤖 Bot'}**`
         ].join(' ')
     }).join('\n')
 
@@ -658,49 +677,49 @@ async function handleBotDuel(interaction, client) {
 
     const resultEmbed = new EmbedBuilder()
         .setAuthor({
-            name: isPlayerWinner ? '¡Victoria!' : 'Derrota',
+            name: isPlayerWinner ? '¡Ganaste!' : 'Perdiste...',
             iconURL: playerUser.displayAvatarURL({ dynamic: true, size: 128 })
         })
-        .setTitle(isPlayerWinner ? '¡Has derrotado al Bot!' : 'El Bot te ha derrotado')
+        .setTitle(isPlayerWinner ? '¡Le ganaste al Bot!' : 'El Bot te ganó')
         .setColor(resultColor)
         .setThumbnail(iconifyUrlFromColor(resultIcon, resultColor))
         .addFields(
             {
-                name: `📊 Serie al Mejor de 3 (${scoreText})`,
+                name: `📊 Serie al mejor de 3 (${scoreText})`,
                 value: roundLines,
                 inline: false
             },
             {
                 name: 'Resultado',
                 value: isPlayerWinner
-                    ? `🎉 **Ganaste +${betAmount} gominolas** (neto)!`
+                    ? `🎉 **Ganaste +${betAmount} gominolas**!`
                     : `💔 **Perdiste -${betAmount} gominolas**...`,
                 inline: false
             }
         )
-        .setFooter({ text: isPlayerWinner ? '¡El bot te rinde pleitesía!' : '¡Mejor suerte la próxima, invocador!' })
+        .setFooter({ text: isPlayerWinner ? 'el bot se rinde ante vos' : 'la próxima sale, confianza' })
         .setTimestamp()
 
     if (!isPlayerWinner) {
         if (polymorphiaApplied) {
             resultEmbed.setDescription(
-                `**${botUser}** ha invocado la magia de Polymorphia sobre ti!\n\n` +
-                `*Has sido transformado en un campeón de League of Legends...*`
+                `**${botUser}** te tiró la Polymorphia encima!\n\n` +
+                `*${playerArt} transformaron en un campeón de League of Legends... F*`
             )
         } else {
             const failReason = polymorphiaFailureReason
                 ? `*${polymorphiaFailureReason}.*`
-                : '*Una perturbación mágica impidió el cambio de apodo.*'
+                : '*se bugeó la magia y no te pudieron cambiar el nombre*'
             resultEmbed.setDescription(
-                `**${botUser}** ganó la serie ${scoreText}!\n\n` +
+                `**${botUser}** ganó ${scoreText}!\n\n` +
                 `${failReason}\n\n` +
-                `Las gominolas igual fueron cobradas.`
+                `las gominolas igual te las cobraron`
             )
         }
     } else {
         resultEmbed.setDescription(
-            `**${playerUser}** ha demostrado ser más poderoso que el bot!\n\n` +
-            `La magia rebota y el bot escapa ileso — esta vez tu nombre está a salvo.`
+            `**${playerUser}** demostró ser más fuert${g(playerGender, { m: 'e', f: 'e' })} que el bot!\n\n` +
+            `la magia rebota y el bot se salva — tu nombre está a salvo`
         )
     }
 
