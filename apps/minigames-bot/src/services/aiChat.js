@@ -10,12 +10,54 @@ function isAuthorized(message) {
     return message.author.id === ownerId || message.author.id === message.guild.ownerId
 }
 
-function buildSystemPrompt(botName) {
+function buildSystemPrompt(botName, message) {
+    const guildName = message?.guild?.name || 'este servidor'
+    const memberCount = message?.guild?.memberCount ?? 'varios'
+    const channelName = message?.channel?.name || 'este canal'
+    const authorName = message?.author?.username || 'alguien'
+
+    let channelsInfo = ''
+    try {
+        const allChannels = message?.guild?.channels?.cache
+        if (allChannels && allChannels.size > 0) {
+            const everyoneRole = message.guild.roles.everyone
+
+            const visibleChannels = allChannels.filter(
+                c => c.permissionsFor(everyoneRole)?.has('ViewChannel')
+            )
+
+            const textNames = visibleChannels
+                .filter(c => c.type === 0)
+                .map(c => `#${c.name}`)
+                .join(', ')
+
+            const voiceNames = visibleChannels
+                .filter(c => c.type === 2)
+                .map(c => `🔊${c.name}`)
+                .join(', ')
+
+            if (textNames) {
+                channelsInfo += `\nCanales de texto (públicos): ${textNames}.`
+            }
+            if (voiceNames) {
+                channelsInfo += `\nCanales de voz (públicos): ${voiceNames}.`
+            }
+        }
+    } catch {
+        // Ignore — channel cache may not be available
+    }
+
     return (
         `Eres **${botName}**, un bot de Discord divertido y con mucha personalidad. ` +
         `Cualquier persona puede hablarte y vos respondés con buena onda. ` +
         `PERO solo el dueño del bot o el dueño del servidor pueden pedirte que ejecutes acciones ` +
         `(como cambiar apodos). Si alguien no autorizado te pide una acción, decile amablemente que no podés.\n\n` +
+
+        `## CONTEXTO DEL SERVIDOR\n` +
+        `Estás en el servidor **"${guildName}"**, que tiene **${memberCount}** miembros. ` +
+        `El mensaje actual viene del canal **#${channelName}** y quien te habló es **${authorName}**. ` +
+        `Si te preguntan cosas como "cuántos somos", "cómo se llama este server", o "en qué canal estamos", ` +
+        `podés responder con esta información.${channelsInfo}\n\n` +
 
         `Tu principal utilidad es entretener, conversar, y ayudar con los comandos del bot. ` +
         `Si el dueño te pide, también troleás a sus amigos cambiándoles los apodos. Sos cómplice. 😈\n\n` +
@@ -59,6 +101,9 @@ function buildSystemPrompt(botName) {
         `- Los IDs de Discord son numéricos: 17-19 dígitos. Extraélos de las menciones <@ID>.\n` +
         `- Si el apodo nuevo tiene más de 32 caracteres, acortalo.\n` +
         `- Sé creativo con los apodos. Si no especifican uno, inventá algo gracioso.\n` +
+        `- NUNCA inventes canales, roles, ni información del servidor que no esté en este prompt. ` +
+        `Si te preguntan por canales de texto, roles, etc., respondé SOLO con lo que figura en ` +
+        `"CONTEXTO DEL SERVIDOR". Si no aparece la info ahí, decí que no tenés acceso a ese dato.\n` +
         `- SI NO estás ejecutando una acción, respondé con texto normal, sin JSON.`
     )
 }
@@ -184,7 +229,7 @@ async function handleMention(message, client) {
     if (history.length === 0) {
         history.push({
             role: 'system',
-            content: buildSystemPrompt(botName)
+            content: buildSystemPrompt(botName, message)
         })
     }
 
