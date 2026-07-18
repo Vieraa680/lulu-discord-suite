@@ -16,12 +16,38 @@ This is an npm workspaces monorepo. Never treat applications as isolated reposit
 3. **All code, comments, folder names, and commit messages must be written strictly in English.**
 
 ## Git Flow & Commit Conventions
-We use a simplified Git Flow. Branches must use the format: `feature/app-name-description` (e.g., `feature/minigames-polymorphia`).
-Commit messages must follow Conventional Commits:
-- `feat(minigames): ...`
-- `fix(admin): ...`
-- `feat(crm): ...`
-- `chore(repo): ...`
+
+### Branch Naming
+We use a simplified Git Flow. Branches MUST use the format: `feature/app-name-description` (e.g., `feature/minigames-polymorphia`).
+
+### Commit Messages (MANDATORY — NO EXCEPTIONS)
+**Every single commit, without exception, MUST follow [Conventional Commits](https://www.conventionalcommits.org/).**
+
+Format: `<type>(<scope>): <description>`
+
+- The `type` is REQUIRED in every commit.
+- The `scope` is REQUIRED in every commit.
+- The `description` MUST be in English.
+- Keep the first line under 72 characters.
+
+| Type | Scope | When to use |
+|------|-------|-------------|
+| `feat` | `minigames`, `admin`, `crm`, `database`, `repo` | New feature or functionality |
+| `fix` | `minigames`, `admin`, `crm`, `database`, `repo` | Bug fix |
+| `chore` | `repo`, `minigames`, `admin`, `crm`, `database` | Maintenance, deps, config |
+| `docs` | `repo`, `minigames`, `admin`, `crm`, `database` | Documentation only |
+| `refactor` | `minigames`, `admin`, `crm`, `database` | Code restructuring without feature/bug changes |
+| `style` | `minigames`, `admin`, `crm`, `database` | Formatting, whitespace (no logic changes) |
+| `test` | `minigames`, `admin`, `crm`, `database` | Adding or updating tests |
+| `perf` | `minigames`, `admin`, `crm`, `database` | Performance improvements |
+
+Examples:
+- `feat(minigames): add polymorphia duel cooldown tracking`
+- `fix(admin): resolve permission check in ban command`
+- `chore(repo): upgrade discord.js to v14.18`
+- `docs(repo): add contributing guide`
+
+**Commits that do not follow this convention will be rejected or rebased.**
 
 ## Tech Stack Guidelines
 - **Backend/Bots:** Node.js, JavaScript/TypeScript, Discord.js v14+, dotenv. Use Slash Commands (`/`) for bot interactions; avoid legacy text prefix commands except for passive event listening.
