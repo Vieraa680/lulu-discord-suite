@@ -6,7 +6,7 @@ const {
     PermissionFlagsBits
 } = require('discord.js')
 const { findUserByDiscord, prisma, incrementDailyDuelCount } = require('#services/database')
-const { resolveDuel, getDefenseItemConfig, getRandomDuration } = require('../DuelEngine')
+const { resolveBestOfThree, getDefenseItemConfig, getRandomDuration } = require('../DuelEngine')
 const { canInitiateDuel, canBeTargeted } = require('../CooldownManager')
 const { executeRewardFlow, applyPolymorphia } = require('../RewardManager')
 const { getOwnedDefenseItems, consumeItem } = require('../ItemDefense')
@@ -142,6 +142,7 @@ async function handleDuel(interaction, client) {
         .setTitle('¡Desafío de Duelo Polymorphia!')
         .setDescription(
             `${interaction.user} ha desafiado a ${target} a un duelo de Polymorphia!\n\n` +
+            `**Formato:** Al mejor de **3 rondas** — primero en ganar 2 se lleva la serie\n` +
             `**Apuesta:** **${betAmount}** gominolas cada uno\n` +
             `**Ganador se lleva todo:** **${totalPot}** gominolas\n` +
             `**Perdedor pierde todo** (-${betAmount})\n\n` +
@@ -365,7 +366,7 @@ async function handleDefenseButton(interaction) {
 }
 
 /**
- * Resolve the duel and execute the reward flow.
+ * Resolve the best-of-3 duel and execute the reward flow.
  */
 async function resolveAndComplete(interaction, session) {
     const { challengerId, targetId, challengerDb, targetDb, guildId, defenseItem, betAmount } = session
@@ -391,14 +392,14 @@ async function resolveAndComplete(interaction, session) {
     const attackerStats = { ...(freshAttacker || challengerDb), veteranBonus: challengerVet }
     const defenderStats = { ...(freshDefender || targetDb), veteranBonus: targetVet }
 
-    // Resolve duel
-    const duelResult = resolveDuel(
+    // ── Resolve best-of-3 duel ──
+    const duelResult = resolveBestOfThree(
         attackerStats,
         defenderStats,
         defenseItem
     )
 
-    // Execute reward flow
+    // Execute reward flow (uses winner + blockedByShield from duelResult)
     const summary = await executeRewardFlow(
         interaction,
         duelResult,
@@ -416,34 +417,53 @@ async function resolveAndComplete(interaction, session) {
         }
     }
 
-    // Build result embed
+    // ── Build rich best-of-3 result embed ──
     const resultColor = summary.isAttackerWinner ? 0x9B59B6 : 0x2ECC71
     const resultIcon = summary.isAttackerWinner ? 'TROPHY' : 'SHIELD'
     const winnerId = summary.isAttackerWinner ? challengerId : targetId
+    const loserId = summary.isAttackerWinner ? targetId : challengerId
     const winnerUser = interaction.guild.members.cache.get(winnerId)?.user || interaction.client.users.cache.get(winnerId)
+    const loserUser = interaction.guild.members.cache.get(loserId)?.user || interaction.client.users.cache.get(loserId)
     const winnerAvatar = winnerUser ? winnerUser.displayAvatarURL({ dynamic: true, size: 128 }) : iconifyUrlFromColor(resultIcon, resultColor)
+
+    // Build round-by-round display
+    const challengerUser = interaction.client.users.cache.get(challengerId)
+    const targetUser = interaction.client.users.cache.get(targetId)
+    const roundLines = duelResult.rounds.map((r, i) => {
+        const roundWinner = r.winner === 'attacker'
+            ? challengerUser?.username || 'Atacante'
+            : targetUser?.username || 'Defensor'
+        const emoji = r.winner === 'attacker' ? '⚔️' : '🛡️'
+        return [
+            `**Ronda ${i + 1}:**`,
+            `${emoji} Atacante: \`${r.attackerRoll}\``,
+            `🛡️ Defensor: \`${r.defenderRoll}\``,
+            `→ **${roundWinner}**`
+        ].join(' ')
+    }).join('\n')
+
+    const scoreText = `**${duelResult.attackerWins}** - **${duelResult.defenderWins}**`
 
     const resultEmbed = new EmbedBuilder()
         .setAuthor({
-            name: summary.isAttackerWinner ? 'Atacante Victorioso' : 'Defensor Prevalece',
+            name: summary.isAttackerWinner ? '⚔️ Atacante Victorioso' : '🛡️ Defensor Prevalece',
             iconURL: winnerAvatar
         })
-        .setTitle(summary.isAttackerWinner ? '¡Polymorphia — Atacante Gana!' : '¡Polymorphia — Defensor Prevalece!')
+        .setTitle(
+            summary.isAttackerWinner
+                ? `¡Polymorphia — Atacante Gana ${scoreText}!`
+                : `¡Polymorphia — Defensor Prevalece ${scoreText}!`
+        )
         .setColor(resultColor)
         .setThumbnail(iconifyUrlFromColor(resultIcon, resultColor))
         .addFields(
             {
-                name: 'Tiradas',
-                value: [
-                    `**Atacante:** \`${duelResult.attackerRoll}\` (d20 + ${duelResult.attackerModifier})`,
-                    `${progressBar(duelResult.attackerRoll, 20 + duelResult.attackerModifier, 8)}`,
-                    `**Defensor:** \`${duelResult.defenderRoll}\` (d20 + ${duelResult.defenderModifier})`,
-                    `${progressBar(duelResult.defenderRoll, 20 + duelResult.defenderModifier, 8)}`
-                ].join('\n'),
+                name: `📊 Serie al Mejor de 3 (${scoreText})`,
+                value: roundLines,
                 inline: false
             },
             {
-                name: 'Recompensas',
+                name: '💰 Recompensas',
                 value: [
                     `**Ganador:** **+${betAmount * 2}** (neto +${betAmount})`,
                     `**Perdedor:** **-${betAmount}** (pierde todo)`
@@ -453,18 +473,19 @@ async function resolveAndComplete(interaction, session) {
         )
         .setTimestamp()
 
+    // ── Description based on outcome ──
     if (summary.isAttackerWinner) {
         if (summary.blockedByShield) {
             resultEmbed.setDescription(
-                `**${winnerUser}** ganó el duelo de Polymorphia!\n\n` +
-                `Pero el **Escudo de Banshee** de **${interaction.client.users.cache.get(targetId)}** ` +
+                `**${winnerUser}** ganó la serie ${scoreText}!\n\n` +
+                `Pero el **Escudo de Banshee** de **${loserUser}** ` +
                 '**bloqueó** el cambio de apodo! El escudo se hace trizas pero el nombre se mantiene a salvo.\n\n' +
                 `*El atacante igual se lleva las gominolas, pero el defensor conserva su identidad.*`
             )
         } else if (summary.polymorphiaApplied) {
             resultEmbed.setDescription(
-                `**${winnerUser}** ganó el duelo de Polymorphia!\n\n` +
-                `Polimorfia lanzada sobre **${interaction.client.users.cache.get(targetId)}**!\n\n` +
+                `**${winnerUser}** ganó la serie ${scoreText}!\n\n` +
+                `Polimorfia lanzada sobre **${loserUser}**!\n\n` +
                 `*El perdedor ha sido transformado en un campeón de League of Legends.*`
             )
         } else {
@@ -472,7 +493,7 @@ async function resolveAndComplete(interaction, session) {
                 ? `*${summary.polymorphiaFailureReason}.*`
                 : '*Una perturbación mágica impidió el cambio de apodo.*'
             resultEmbed.setDescription(
-                `**${winnerUser}** ganó el duelo de Polymorphia!\n\n` +
+                `**${winnerUser}** ganó la serie ${scoreText}!\n\n` +
                 `${failDescription}\n\n` +
                 `Las gominolas igual fueron otorgadas.`
             )
@@ -533,7 +554,7 @@ async function handleBotDuel(interaction, client) {
 
     const playerStats = { ...playerDb, veteranBonus: playerVet }
 
-    const duelResult = resolveDuel(playerStats, botStats, null)
+    const duelResult = resolveBestOfThree(playerStats, botStats, null)
     const isPlayerWinner = duelResult.winner === 'attacker'
 
     const today = new Date()
@@ -615,6 +636,19 @@ async function handleBotDuel(interaction, client) {
     const resultColor = isPlayerWinner ? 0x9B59B6 : 0xE74C3C
     const resultIcon = isPlayerWinner ? 'TROPHY' : 'CROSS'
 
+    // Build round-by-round display for bot duel
+    const roundLines = duelResult.rounds.map((r, i) => {
+        const emoji = r.winner === 'attacker' ? '⚔️' : '🛡️'
+        return [
+            `**Ronda ${i + 1}:**`,
+            `${emoji} Tú: \`${r.attackerRoll}\``,
+            `🤖 Bot: \`${r.defenderRoll}\``,
+            `→ **${r.winner === 'attacker' ? 'Tú' : '🤖 Bot'}**`
+        ].join(' ')
+    }).join('\n')
+
+    const scoreText = `**${duelResult.attackerWins}** - **${duelResult.defenderWins}**`
+
     const resultEmbed = new EmbedBuilder()
         .setAuthor({
             name: isPlayerWinner ? '¡Victoria!' : 'Derrota',
@@ -625,13 +659,8 @@ async function handleBotDuel(interaction, client) {
         .setThumbnail(iconifyUrlFromColor(resultIcon, resultColor))
         .addFields(
             {
-                name: 'Tiradas',
-                value: [
-                    `**${playerUser.username} (tú):** \`${duelResult.attackerRoll}\` (d20 + ${duelResult.attackerModifier})`,
-                    `${progressBar(duelResult.attackerRoll, 20 + duelResult.attackerModifier, 8)}`,
-                    `**${botUser.username} (bot):** \`${duelResult.defenderRoll}\` (d20 + ${duelResult.defenderModifier})`,
-                    `${progressBar(duelResult.defenderRoll, 20 + duelResult.defenderModifier, 8)}`
-                ].join('\n'),
+                name: `📊 Serie al Mejor de 3 (${scoreText})`,
+                value: roundLines,
                 inline: false
             },
             {
@@ -656,7 +685,7 @@ async function handleBotDuel(interaction, client) {
                 ? `*${polymorphiaFailureReason}.*`
                 : '*Una perturbación mágica impidió el cambio de apodo.*'
             resultEmbed.setDescription(
-                `**${botUser}** ganó el duelo!\n\n` +
+                `**${botUser}** ganó la serie ${scoreText}!\n\n` +
                 `${failReason}\n\n` +
                 `Las gominolas igual fueron cobradas.`
             )

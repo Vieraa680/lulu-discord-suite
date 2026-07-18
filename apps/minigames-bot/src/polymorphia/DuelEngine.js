@@ -35,9 +35,7 @@ function rollD20() {
  */
 function getAttackerModifier(userStats) {
     let bonus = 0
-    // +1 per win, cap at +5
     bonus += Math.min(userStats.polymorphiaWins || 0, 5)
-    // Veteran role bonus (+2 for "Invocador Veterano")
     bonus += (userStats.veteranBonus || 0)
     return bonus
 }
@@ -50,11 +48,8 @@ function getAttackerModifier(userStats) {
  */
 function getDefenderModifier(userStats, defenseItem) {
     let bonus = 0
-    // +1 per successful defense, cap at +3
     bonus += Math.min(userStats.polymorphiaSaved || 0, 3)
-    // Veteran role bonus (+2 for "Invocador Veterano")
     bonus += (userStats.veteranBonus || 0)
-    // Defense item bonus
     if (defenseItem) {
         bonus += defenseItem.rollBonus || 0
     }
@@ -68,17 +63,6 @@ function getDefenderModifier(userStats, defenseItem) {
  * @param {object} defenderStats - User DB record (defender)
  * @param {string|null} defenseItemName - Name of the defense item used (or null)
  * @returns {object} Result object
- *
- * Result shape:
- * {
- *   winner: 'attacker' | 'defender',
- *   attackerRoll: number,
- *   defenderRoll: number,
- *   attackerModifier: number,
- *   defenderModifier: number,
- *   defenseItemUsed: string|null,
- *   blockedByShield: boolean      // true if Escudo de Banshee blocked the nickname change
- * }
  */
 function resolveDuel(attackerStats, defenderStats, defenseItemName) {
     const defenseItem = defenseItemName ? DEFENSE_ITEMS[defenseItemName] : null
@@ -103,20 +87,65 @@ function resolveDuel(attackerStats, defenderStats, defenseItemName) {
         blockedByShield: false
     }
 
-    // Attacker wins on strictly higher roll
     if (attackerTotal > defenderTotal) {
         result.winner = 'attacker'
-
-        // Check if Escudo de Banshee blocks the nickname change
-        if (defenseItem && defenseItem.effect === 'block') {
-            result.blockedByShield = Math.random() < defenseItem.blockChance
-        }
     } else {
-        // Defender wins on tie or higher
         result.winner = 'defender'
     }
 
     return result
+}
+
+function resolveBestOfThree(attackerStats, defenderStats, defenseItemName) {
+    const defenseItem = defenseItemName ? DEFENSE_ITEMS[defenseItemName] : null
+    const rounds = []
+    let attackerWins = 0
+    let defenderWins = 0
+    let seriesWinner = null
+    let blockedByShield = false
+
+    for (let round = 1; round <= 3; round++) {
+        const roundResult = resolveDuel(attackerStats, defenderStats, defenseItemName)
+        roundResult.round = round
+
+        rounds.push(roundResult)
+
+        if (roundResult.winner === 'attacker') {
+            attackerWins++
+        } else {
+            defenderWins++
+        }
+
+        console.log(
+            `[BestOf3] 🏆 Ronda ${round}: Atacante=${roundResult.attackerRoll} (d20+${roundResult.attackerModifier}) ` +
+            `vs Defensor=${roundResult.defenderRoll} (d20+${roundResult.defenderModifier}) → ` +
+            `${roundResult.winner} (${attackerWins}-${defenderWins})`
+        )
+
+        if (attackerWins >= 2 || defenderWins >= 2) {
+            break
+        }
+    }
+
+    seriesWinner = attackerWins >= 2 ? 'attacker' : 'defender'
+
+    if (seriesWinner === 'attacker' && defenseItem && defenseItem.effect === 'block') {
+        blockedByShield = Math.random() < defenseItem.blockChance
+        console.log(`[BestOf3] 🛡️ Escudo de Banshee: ${blockedByShield ? 'BLOQUEÓ' : 'no bloqueó'} el cambio de apodo`)
+    }
+
+    return {
+        winner: seriesWinner,
+        blockedByShield,
+        rounds,
+        attackerWins,
+        defenderWins,
+        attackerRoll: rounds[rounds.length - 1].attackerRoll,
+        defenderRoll: rounds[rounds.length - 1].defenderRoll,
+        attackerModifier: rounds[0].attackerModifier,
+        defenderModifier: rounds[0].defenderModifier,
+        defenseItemUsed: defenseItemName || null
+    }
 }
 
 /**
@@ -139,6 +168,7 @@ function getDefenseItemConfig(itemName) {
 module.exports = {
     DEFENSE_ITEMS,
     resolveDuel,
+    resolveBestOfThree,
     rollD20,
     getAttackerModifier,
     getDefenderModifier,
