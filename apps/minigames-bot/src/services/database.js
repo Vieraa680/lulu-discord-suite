@@ -1,10 +1,4 @@
-const { PrismaClient } = require('@prisma/client')
-
-const prisma = globalThis.__prismaClient__ ?? new PrismaClient()
-
-if (process.env.NODE_ENV !== 'production') {
-    globalThis.__prismaClient__ = prisma
-}
+const { prisma } = require('@lulu-discord/database')
 
 /**
  * Get or create a user record for a given Discord user in a specific guild.

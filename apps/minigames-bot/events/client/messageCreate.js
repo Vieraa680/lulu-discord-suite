@@ -32,7 +32,7 @@ function buildButterflyMessage() {
         )
         .setColor(0xA020F0)
         .setFooter({
-            text: 'Presiona el boton o escribe /catch para atraparla — tienes 2 minutos!'
+            text: 'Presiona el boton o escribe /catch para atraparla — tienes 30 segundos!'
         })
         .setTimestamp()
 

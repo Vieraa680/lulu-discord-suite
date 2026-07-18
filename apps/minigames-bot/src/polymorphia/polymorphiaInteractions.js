@@ -1,5 +1,5 @@
 const { handleDuelButton, handleDefenseButton } = require('./handlers/duelHandler')
-const { purchaseItem } = require('./ItemDefense')
+const { purchaseItem } = require('#services/database')
 const { EmbedBuilder } = require('discord.js')
 const { iconifyUrlFromColor } = require('#services/icons')
 

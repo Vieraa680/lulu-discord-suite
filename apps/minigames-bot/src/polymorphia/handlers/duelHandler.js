@@ -5,12 +5,18 @@ const {
     ButtonStyle,
     PermissionFlagsBits
 } = require('discord.js')
-const { findUserByDiscord, prisma, incrementDailyDuelCount } = require('#services/database')
+const {
+    findUserByDiscord,
+    prisma,
+    incrementDailyDuelCount,
+    canInitiateDuel,
+    canBeTargeted,
+    getUserOwnedDefenseItems: getOwnedDefenseItems,
+    consumeUserItem: consumeItem,
+    getOrCreateUser
+} = require('#services/database')
 const { resolveBestOfThree, getDefenseItemConfig, getRandomDuration } = require('../DuelEngine')
-const { canInitiateDuel, canBeTargeted } = require('../CooldownManager')
 const { executeRewardFlow, applyPolymorphia } = require('../RewardManager')
-const { getOwnedDefenseItems, consumeItem } = require('../ItemDefense')
-const { getOrCreateUser } = require('#services/database')
 const { progressBar, relativeTimestamp } = require('../utils')
 const {
     iconifyUrlFromColor
@@ -314,7 +320,7 @@ async function showDefenseSelection(interaction, session) {
     )
 
     // Add owned defense items as buttons
-    // ItemDefense returns items the user actually owns
+    // Database helper returns items the user actually owns
     for (const item of ownedItems) {
         if (row.components.length >= 5) break
         row.addComponents(

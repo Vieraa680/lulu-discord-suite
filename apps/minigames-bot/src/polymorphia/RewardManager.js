@@ -1,8 +1,15 @@
-const { prisma, createPolymorphiaState, recordDuelResult, recordDefenderWin, incrementDailyDuelCount } = require('#services/database')
+const {
+    prisma,
+    createPolymorphiaState,
+    recordDuelResult,
+    recordDefenderWin,
+    incrementDailyDuelCount,
+    applyCooldowns,
+    getOrCreateUser
+} = require('#services/database')
 const { generatePolymorphiaNickname } = require('#services/deepseek')
 const { getRandomFallbackNickname } = require('./fallbackNicknames')
 const { getRandomDuration } = require('./DuelEngine')
-const { applyCooldowns } = require('./CooldownManager')
 const { detectGender, g } = require('#utils/gender')
 
 /**
@@ -27,7 +34,7 @@ async function executeRewardFlow(interaction, duelResult, attackerDb, defenderDb
     // Update duel stats (delegated to database.js)
     await updateDuelStats(winnerDb.id, loserDb.id, duelResult)
 
-    // Apply cooldowns (delegated to database.js via CooldownManager)
+    // Apply cooldowns (delegated to database.js)
     await applyCooldowns(winnerDb.discordId, loserDb.discordId, guildId)
 
     // Increment daily duel count for the attacker (initiator)
@@ -164,7 +171,6 @@ async function applyPolymorphia(interaction, targetDiscordId, guildId) {
     )
 
     // Get or create User DB record to get internal ID
-    const { getOrCreateUser } = require('#services/database')
     const userDb = await getOrCreateUser(targetDiscordId, guildId, displayName)
 
     // Create PolymorphiaState via database.js helper

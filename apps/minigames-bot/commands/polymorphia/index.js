@@ -234,7 +234,7 @@ async function handleStats(interaction) {
     const { EmbedBuilder } = require('discord.js')
     const { prisma } = require('#services/database')
     const { progressBar, cooldownBar, relativeTimestamp } = require('#polymorphia/utils')
-    const { DUEL_COOLDOWN_MS, PROTECTION_MS } = require('#polymorphia/CooldownManager')
+    const { DUEL_COOLDOWN_MS, PROTECTION_MS } = require('#services/database')
     const { checkVeteranRole } = require('#polymorphia/handlers/duelHandler')
     const { detectGender, g } = require('#utils/gender')
 
@@ -360,4 +360,3 @@ function getDefaultDescription(item) {
     }
     return descriptions[item.name] || ''
 }
-
