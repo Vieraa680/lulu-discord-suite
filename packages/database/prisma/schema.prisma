@@ -119,6 +119,8 @@ model Item {
   rarity        String     @default("common")  // common / uncommon / rare / epic / legendary
   isCollectible Boolean    @default(false)    // Can be found via minigames?
   isActive      Boolean    @default(true)     // Soft-delete / disable flag
+  // Optional per-item duration for cosmetic forms (minutes). Null for non-forms.
+  formDuration  Int?
 
   owners        UserItem[]
 
