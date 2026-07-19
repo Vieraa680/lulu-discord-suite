@@ -1,8 +1,8 @@
 const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder } = require('discord.js')
 const { logger } = require('@lulu-discord/bot-utils')
 
-// re-use guildConfig from minigames service
-const { getGuildConfig } = require('../../../minigames-bot/src/services/guildConfig')
+// use shared guildConfig from bot-utils
+const { getGuildConfig } = require('@lulu-discord/bot-utils').guildConfig
 
 module.exports = {
     data: new SlashCommandBuilder()
