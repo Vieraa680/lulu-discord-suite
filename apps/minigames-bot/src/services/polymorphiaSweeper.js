@@ -16,13 +16,15 @@ async function sweepExpiredPolymorphia(client) {
             include: { user: true }
         })
     } catch (error) {
-        console.error('[Sweeper] Database query failed:', error.message)
+        const logger = require('#utils/logger')
+        logger.error({ err: error }, '[Sweeper] Database query failed')
         return 0
     }
 
     if (expiredStates.length === 0) return 0
 
-    console.log(`[Sweeper] Found ${expiredStates.length} expired polymorphia state(s). Reverting...`)
+    const logger = require('#utils/logger')
+    logger.info({ count: expiredStates.length }, 'Found expired polymorphia state(s). Reverting...')
 
     let revertedCount = 0
 
@@ -30,10 +32,7 @@ async function sweepExpiredPolymorphia(client) {
         try {
             const guild = client.guilds.cache.get(state.guildId)
             if (!guild) {
-                console.warn(
-                    `[Sweeper] Guild ${state.guildId} not found (bot left?). ` +
-                    `Marking state ${state.id} as inactive.`
-                )
+                logger.warn({ guildId: state.guildId, stateId: state.id }, 'Guild not found (bot left?). Marking state inactive')
                 await markInactive(state.id)
                 revertedCount++
                 continue
@@ -46,10 +45,7 @@ async function sweepExpiredPolymorphia(client) {
             try {
                 member = await guild.members.fetch(state.user.discordId)
             } catch {
-                console.warn(
-                    `[Sweeper] Member ${state.user.discordId} no longer in guild ` +
-                    `${state.guildId}. Marking state as inactive.`
-                )
+                logger.warn({ discordId: state.user.discordId, guildId: state.guildId, stateId: state.id }, 'Member no longer in guild. Marking state inactive')
                 await markInactive(state.id)
                 revertedCount++
                 continue
@@ -59,22 +55,12 @@ async function sweepExpiredPolymorphia(client) {
                 const originalNickname = state.previousNickname || null
                 await member.setNickname(originalNickname, 'Polymorphia effect expired naturally.')
             } else if (!canManage) {
-                console.warn(
-                    `[Sweeper] Missing ManageNicknames permission in guild ${state.guildId}. ` +
-                    `State ${state.id} marked inactive but nickname was NOT reverted.`
-                )
+                logger.warn({ guildId: state.guildId, stateId: state.id }, 'Missing ManageNicknames permission. State marked inactive; nickname NOT reverted')
             } else {
-                console.warn(
-                    `[Sweeper] Bot's role is lower than ${state.user.discordId}'s role in ` +
-                    `guild ${state.guildId}. Nickname NOT reverted.`
-                )
+                logger.warn({ guildId: state.guildId, discordId: state.user.discordId, stateId: state.id }, "Bot's role is lower than user's role. Nickname NOT reverted")
             }
         } catch (discordError) {
-            console.error(
-                `[Sweeper] Failed to process state ${state.id} for user ` +
-                `${state.user?.discordId ?? 'unknown'}:`,
-                discordError.message
-            )
+            logger.error({ err: discordError, stateId: state.id, discordId: state.user?.discordId ?? 'unknown' }, 'Failed to process state')
         }
 
         await markInactive(state.id)
@@ -96,22 +82,23 @@ async function markInactive(stateId) {
             }
         })
     } catch (error) {
-        console.error(`[Sweeper] Failed to mark state ${stateId} as inactive:`, error.message)
+        const logger = require('#utils/logger')
+        logger.error({ err: error, stateId }, 'Failed to mark state as inactive')
     }
 }
 
 function startSweeper(client) {
-    console.log(`[Sweeper] Starting polymorphia sweeper (interval: ${SWEEP_INTERVAL_MS}ms)...`)
+    logger.info({ intervalMs: SWEEP_INTERVAL_MS }, 'Starting polymorphia sweeper')
 
     sweepExpiredPolymorphia(client).then(count => {
         if (count > 0) {
-            console.log(`[Sweeper] Initial sweep reverted ${count} state(s)`)
+            logger.info({ count }, 'Initial sweep reverted states')
         }
     })
 
     const intervalId = setInterval(() => {
         sweepExpiredPolymorphia(client).catch(error => {
-            console.error('[Sweeper] Interval sweep error:', error.message)
+            logger.error({ err: error }, 'Interval sweep error')
         })
     }, SWEEP_INTERVAL_MS)
 

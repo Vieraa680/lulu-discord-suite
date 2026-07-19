@@ -268,7 +268,8 @@ async function executeSetNickname(message, args) {
         await targetMember.setNickname(nickname)
         await message.reply(`✅ Listo, ahora **${targetMember.displayName}** se llama **${nickname}** 😈`)
     } catch (error) {
-        console.error('[aiChat] setNickname failed:', error.message)
+        const logger = require('#utils/logger').child({ service: 'aiChat', action: 'setNickname' })
+        logger.error({ err: error }, 'setNickname failed')
         const errorMsg =
             error.code === 50013
                 ? '❌ No tengo permisos para cambiarle el apodo a ese usuario (mi rol está por debajo en la jerarquía).'
@@ -317,7 +318,8 @@ async function handleMention(message, client) {
     try {
         aiResponse = await queryDeepSeek(history)
     } catch (error) {
-        console.error('[aiChat] DeepSeek query failed:', error.message)
+        const logger = require('#utils/logger').child({ service: 'aiChat', action: 'queryDeepSeek' })
+        logger.error({ err: error }, 'DeepSeek query failed')
         await message.reply('💀 Upa, me quedé en el aire. Decimelo de nuevo.')
         // Remove the last user message so they can retry
         if (history[history.length - 1]?.role === 'user') {
@@ -339,10 +341,8 @@ async function handleMention(message, client) {
                 '🤷 Solo el dueño del bot o el dueño del servidor pueden pedirme que ejecute acciones.'
             )
 
-            console.warn(
-                `[aiChat] Unauthorized action attempt by ${message.author.username} ` +
-                `(${message.author.id}): ${action.action}`
-            )
+            const logger = require('#utils/logger').child({ service: 'aiChat' })
+            logger.warn({ user: message.author.id, username: message.author.username, action: action.action }, 'Unauthorized action attempt')
             return
         }
 

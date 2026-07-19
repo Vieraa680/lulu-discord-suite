@@ -6,6 +6,22 @@ import { PrismaClient } from "@prisma/client"
 
 const prisma = new PrismaClient()
 
+const ACHIEVEMENTS = [
+  { name: "Primer Duelo",          emoji: "⚔️",  category: "polymorphia", requirement: "polymorphiaWins >= 1",          description: "Ganaste tu primer duelo de Polymorphia." },
+  { name: "Duelista Novato",       emoji: "🥉",  category: "polymorphia", requirement: "polymorphiaWins >= 5",          description: "Acumulaste 5 victorias en duelos." },
+  { name: "Duelista Veterano",     emoji: "🥈",  category: "polymorphia", requirement: "polymorphiaWins >= 25",         description: "Acumulaste 25 victorias en duelos." },
+  { name: "Maestro del Duelo",     emoji: "🥇",  category: "polymorphia", requirement: "polymorphiaWins >= 100",        description: "Alcanzaste 100 victorias en duelos." },
+  { name: "Defensor Nat",          emoji: "🛡️",  category: "polymorphia", requirement: "polymorphiaSaved >= 10",        description: "Te defendiste exitosamente 10 veces." },
+  { name: "Cazador de Mariposas",  emoji: "🦋",  category: "butterfly",   requirement: "butterfliesCaught >= 1",        description: "Atrapaste tu primera mariposa morada." },
+  { name: "Colleccionista",        emoji: "🏆",  category: "butterfly",   requirement: "butterfliesCaught >= 50",       description: "Atrapaste 50 mariposas." },
+  { name: "Primeras Gominolas",    emoji: "🍬",  category: "economy",     requirement: "totalEarned >= 100",            description: "Ganaste tus primeras 100 candies." },
+  { name: "Ahorrador",             emoji: "💰",  category: "economy",     requirement: "candies >= 500",                description: "Acumulaste 500 candies en tu saldo." },
+  { name: "Millonario",            emoji: "💎",  category: "economy",     requirement: "candies >= 10000",              description: "Llegaste a las 10,000 candies." },
+  { name: "Gastador",              emoji: "🛍️",  category: "economy",     requirement: "totalSpent >= 1000",            description: "Gastaste 1,000 candies en la tienda." },
+  { name: "Veterano del Server",   emoji: "👑",  category: "general",     requirement: "createdAt <= now - 30 days",    description: "Llevas 30 días o más en el servidor." },
+  { name: "Primer Comando",        emoji: "🤖",  category: "general",     requirement: "interactions >= 1",             description: "Usaste tu primer comando con Lulu." },
+]
+
 const ITEMS = [
   // ── Butterflies (collectibles) ──
   { name: "Mariposa Monarca",   emoji: "🦋", category: "butterfly", rarity: "common",   price: 0,   isCollectible: true },
@@ -40,6 +56,15 @@ async function main() {
       create: item,
     })
     console.log(`  ✓ ${item.emoji} ${item.name} (${item.rarity})`)
+  }
+
+  for (const achievement of ACHIEVEMENTS) {
+    await prisma.achievement.upsert({
+      where: { name: achievement.name },
+      update: {},
+      create: achievement,
+    })
+    console.log(`  ✓ ${achievement.emoji} ${achievement.name}`)
   }
 
   console.log("Seed complete!")

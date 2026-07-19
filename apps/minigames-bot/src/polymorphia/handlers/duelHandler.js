@@ -17,6 +17,7 @@ const {
 } = require('#services/database')
 const { resolveBestOfThree, getDefenseItemConfig, getRandomDuration } = require('../DuelEngine')
 const { executeRewardFlow, applyPolymorphia } = require('../RewardManager')
+const { evaluateAchievements } = require('#services/achievements')
 const { progressBar, relativeTimestamp } = require('../utils')
 const {
     iconifyUrlFromColor
@@ -528,6 +529,20 @@ async function resolveAndComplete(interaction, session) {
         )
     }
 
+    if (summary.attackerUnlocked?.length > 0 || summary.defenderUnlocked?.length > 0) {
+        const allUnlocked = [
+            ...(summary.attackerUnlocked || []),
+            ...(summary.defenderUnlocked || [])
+        ]
+        const unique = allUnlocked.filter((a, i, arr) => arr.findIndex(b => b.id === a.id) === i)
+        const achievementLines = unique.map(a => `${a.emoji} **${a.name}**`).join('\n')
+        resultEmbed.addFields({
+            name: '🎉 Nuevos logros desbloqueados',
+            value: achievementLines,
+            inline: false
+        })
+    }
+
     await interaction.editReply({ embeds: [resultEmbed], components: [] })
 }
 
@@ -656,8 +671,17 @@ async function handleBotDuel(interaction, client) {
             polymorphiaApplied = true
         } catch (error) {
             polymorphiaFailureReason = error.message
-            console.error(`[Bot Duel] ❌ Error aplicando polimorfia a ${playerName}:`, error.message)
+            const logger = require('#utils/logger').child({ service: 'duelHandler' })
+            logger.error({ err: error, playerName }, 'Error applying polymorphia in bot duel')
         }
+    }
+
+    let unlockedAchievements = []
+    try {
+        unlockedAchievements = await evaluateAchievements(playerId, guildId)
+    } catch (error) {
+        const logger = require('#utils/logger').child({ service: 'duelHandler' })
+        logger.error({ err: error }, 'Error evaluating achievements after bot duel')
     }
 
     const botUser = client.user
@@ -727,6 +751,15 @@ async function handleBotDuel(interaction, client) {
             `**${playerUser}** demostró ser más fuert${g(playerGender, { m: 'e', f: 'e' })} que el bot!\n\n` +
             `la magia rebota y el bot se salva — tu nombre está a salvo`
         )
+    }
+
+    if (unlockedAchievements.length > 0) {
+        const achievementLines = unlockedAchievements.map(a => `${a.emoji} **${a.name}**`).join('\n')
+        resultEmbed.addFields({
+            name: '🎉 Nuevos logros desbloqueados',
+            value: achievementLines,
+            inline: false
+        })
     }
 
     await interaction.editReply({ embeds: [resultEmbed] })

@@ -28,7 +28,8 @@ async function handlePolymorphiaInteraction(interaction) {
             ephemeral: true
         })
     } catch (error) {
-        console.error('[polymorphiaInteractions] Error:', error.message)
+        const logger = require('#utils/logger').child({ service: 'polymorphiaInteractions' })
+        logger.error({ err: error }, 'Error in polymorphiaInteractions')
         try {
             if (interaction.replied || interaction.deferred) {
                 await interaction.followUp({ content: 'ups, hubo un error, intentá de nuevo', ephemeral: true })

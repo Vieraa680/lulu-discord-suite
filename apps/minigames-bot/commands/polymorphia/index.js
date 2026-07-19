@@ -165,7 +165,8 @@ async function handleShop(interaction) {
 
         await interaction.editReply({ embeds: [embed], components: rows })
     } catch (error) {
-        console.error('[polymorphia:shop] Error:', error.message)
+        const logger = require('#utils/logger').child({ command: 'polymorphia', subcommand: 'shop' })
+        logger.error({ err: error }, 'Error loading shop data')
         await interaction.editReply('error al cargar la tienda, intentá de nuevo')
     }
 }
@@ -225,7 +226,8 @@ async function handleInventory(interaction) {
 
         await interaction.editReply({ embeds: [embed] })
     } catch (error) {
-        console.error('[polymorphia:inventory] Error:', error.message)
+        const logger = require('#utils/logger').child({ command: 'polymorphia', subcommand: 'inventory' })
+        logger.error({ err: error }, 'Error loading inventory')
         await interaction.editReply('error al cargar el inventario')
     }
 }
@@ -345,7 +347,8 @@ async function handleStats(interaction) {
 
         await interaction.editReply({ embeds: [embed] })
     } catch (error) {
-        console.error('[polymorphia:stats] Error:', error.message)
+        const logger = require('#utils/logger').child({ command: 'polymorphia', subcommand: 'stats' })
+        logger.error({ err: error }, 'Error loading polymorphia stats')
         await interaction.editReply('error al cargar las stats')
     }
 }

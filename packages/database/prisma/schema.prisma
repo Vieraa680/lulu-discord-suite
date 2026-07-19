@@ -49,6 +49,7 @@ model User {
   state        PolymorphiaState?
   items        UserItem[]
   transactions Transaction[]
+  achievements UserAchievement[]
 
   // ── Timestamps ──
   createdAt DateTime @default(now())
@@ -142,4 +143,37 @@ model Transaction {
 
   @@index([userId])
   @@index([createdAt])
+}
+
+// ──────────────────────────────────────────────
+// ACHIEVEMENT
+// ──────────────────────────────────────────────
+// Catalog of unlockable badges/achievements.
+model Achievement {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String
+  emoji       String   @default("🏅")
+  category    String   // "polymorphia", "economy", "butterfly", "general"
+  requirement String   // e.g. "polymorphiaWins >= 10"
+  createdAt   DateTime @default(now())
+
+  unlockedBy UserAchievement[]
+}
+
+// ──────────────────────────────────────────────
+// USER ACHIEVEMENT (Unlock junction)
+// ──────────────────────────────────────────────
+// Tracks which achievements each user has unlocked.
+model UserAchievement {
+  id            String      @id @default(uuid())
+  userId        String
+  achievementId String
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  achievement   Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
+  unlockedAt    DateTime    @default(now())
+
+  @@unique([userId, achievementId])
+  @@index([userId])
+  @@index([achievementId])
 }

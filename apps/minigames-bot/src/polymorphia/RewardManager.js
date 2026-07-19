@@ -7,6 +7,7 @@ const {
     applyCooldowns,
     getOrCreateUser
 } = require('#services/database')
+const { evaluateAchievements } = require('#services/achievements')
 const { generatePolymorphiaNickname } = require('#services/deepseek')
 const { getRandomFallbackNickname } = require('./fallbackNicknames')
 const { getRandomDuration } = require('./DuelEngine')
@@ -53,8 +54,30 @@ async function executeRewardFlow(interaction, duelResult, attackerDb, defenderDb
             polymorphiaApplied = true
         } catch (error) {
             polymorphiaFailureReason = error.message
-            console.error(`[Polymorphia Duel] ❌ Error aplicando polimorfia a ${loserDb.username}:`, error.message)
+            const logger = require('#utils/logger').child({ service: 'rewardManager' })
+            logger.error({ err: error, loser: loserDb.username }, 'Error applying polymorphia')
         }
+    }
+
+    // Evaluate achievements for both players after the duel
+    try {
+        const [attackerUnlocked, defenderUnlocked] = await Promise.all([
+            evaluateAchievements(attackerDb.discordId, guildId),
+            evaluateAchievements(defenderDb.discordId, guildId)
+        ])
+        return {
+            isAttackerWinner,
+            blockedByShield: duelResult.blockedByShield || false,
+            polymorphiaApplied,
+            polymorphiaFailureReason,
+            winnerDb,
+            loserDb,
+            attackerUnlocked,
+            defenderUnlocked
+        }
+    } catch (error) {
+        const logger = require('#utils/logger').child({ service: 'rewardManager' })
+        logger.error({ err: error }, 'Error evaluating achievements after duel')
     }
 
     return {
@@ -154,11 +177,12 @@ async function applyPolymorphia(interaction, targetDiscordId, guildId) {
     const displayName = member.nickname || member.user.displayName || member.user.username
 
     // Try DeepSeek API first, fallback to local pool on failure
+    const logger = require('#utils/logger').child({ service: 'rewardManager' })
     let polymorphNickname
     try {
         polymorphNickname = await generatePolymorphiaNickname(displayName)
     } catch (err) {
-        console.warn('[RewardManager] DeepSeek failed, using fallback nickname pool:', err.message)
+        logger.warn({ err, displayName }, 'DeepSeek failed, using fallback nickname pool')
         polymorphNickname = getRandomFallbackNickname(displayName)
     }
 

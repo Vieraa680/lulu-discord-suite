@@ -5,6 +5,7 @@ const {
     ButtonStyle
 } = require('discord.js')
 const { addCandies } = require('#services/database')
+const { evaluateAchievements } = require('#services/achievements')
 const { detectGender, g } = require('#utils/gender')
 
 function parseChannelId(customId) {
@@ -74,15 +75,16 @@ async function handleButterflyCatch(interaction, client) {
             .setDisabled(true)
     )
 
+    const logger = require('#utils/logger').child({ service: 'butterfly' })
     try {
         await interaction.update({ embeds: [caughtEmbed], components: [disabledRow] })
     } catch (error) {
-        console.error('[butterflyService] interaction.update() failed:', error.message)
+        logger.error({ err: error }, 'interaction.update failed')
         try {
             const msg = await interaction.channel.messages.fetch(butterfly.messageId)
             await msg.edit({ embeds: [caughtEmbed], components: [disabledRow] })
-        } catch {
-            // message may have been deleted
+        } catch (err) {
+            logger.warn({ err }, 'Failed to edit butterfly message (may have been deleted)')
         }
     }
 
@@ -94,8 +96,21 @@ async function handleButterflyCatch(interaction, client) {
             reward,
             'Atrapó una mariposa morada!'
         )
+
+        const unlocked = await evaluateAchievements(interaction.user.id, interaction.guildId)
+        if (unlocked.length > 0) {
+            const names = unlocked.map(a => `${a.emoji} **${a.name}**`).join('\n')
+            try {
+                await interaction.followUp({
+                    content: `🎉 ¡Nuevo logro desbloqueado!\n${names}`,
+                    ephemeral: true
+                })
+            } catch (err) {
+                logger.warn({ err }, 'Failed to send achievement follow-up')
+            }
+        }
     } catch (error) {
-        console.error('[butterflyService] Database error while rewarding:', error.message)
+        logger.error({ err: error }, 'Database error while rewarding')
     }
 
     try {
