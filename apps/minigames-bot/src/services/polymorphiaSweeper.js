@@ -1,5 +1,6 @@
 const { prisma } = require('#services/database')
 const { PermissionFlagsBits } = require('discord.js')
+const logger = require('#utils/logger')
 
 const SWEEP_INTERVAL_MS = parseInt(process.env.POLYMORPHIA_SWEEP_INTERVAL_MS, 10) || 60_000
 
