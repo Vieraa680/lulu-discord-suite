@@ -10,6 +10,7 @@
     "postinstall": "npm run build -w packages/database",
     "dev:minigames": "npm run dev -w apps/minigames-bot",
     "dev:admin": "npm run dev -w apps/admin-bot",
-    "dev:web": "npm run dev -w apps/crm-dashboard"
+    "dev:web": "npm run dev -w apps/crm-dashboard",
+    "dev:infra": "docker compose up -d"
   }
 }

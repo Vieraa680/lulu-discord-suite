@@ -1,4 +1,6 @@
 require('dotenv').config()
+const validateEnv = require('./src/utils/validateEnv')
+validateEnv()
 const { Client, GatewayIntentBits } = require('discord.js')
 const { loadCommands } = require('#handlers/commandHandler')
 const { loadEvents } = require('#handlers/eventHandler')

@@ -1,0 +1,25 @@
+version: '3.8'
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: lulu
+      POSTGRES_PASSWORD: lulu_dev
+      POSTGRES_DB: lulu_discord_suite
+    ports:
+      - '5432:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  pgadmin:
+    image: dpage/pgadmin4:7
+    environment:
+      PGADMIN_DEFAULT_EMAIL: pgadmin@local
+      PGADMIN_DEFAULT_PASSWORD: pgadmin
+    ports:
+      - '8080:80'
+    depends_on:
+      - postgres
+
+volumes:
+  pgdata:
