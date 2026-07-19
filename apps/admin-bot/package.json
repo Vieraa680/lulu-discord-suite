@@ -1,0 +1,17 @@
+{
+  "name": "admin-bot",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "dev": "node index.js"
+  },
+  "dependencies": {
+    "@lulu-discord/database": "^1.0.0",
+    "@prisma/client": "^6.5.0",
+    "discord.js": "^14.18.0",
+    "dotenv": "^16.4.7"
+  },
+  "imports": {
+    "#handlers/*": "./src/handlers/*.js"
+  }
+}
