@@ -52,6 +52,25 @@ module.exports = {
       const multiplierText = ev.payload?.multiplier ? `${ev.payload.multiplier}×` : 'N/A'
       const message = `✅ Evento creado: **${niceType}**\n• Duración: **${duration} minutos**\n• Multiplicador: **${multiplierText}**\n• Termina: ${ends}`
       await interaction.editReply({ content: message })
+
+      // Announce in configured guild log channel if present
+      try {
+        const { getGuildConfig } = require('#services/guildConfig')
+        const cfg = await getGuildConfig(interaction.guild.id)
+        if (cfg && cfg.logChannelId) {
+          try {
+            const ch = interaction.guild.channels.cache.get(cfg.logChannelId) || await interaction.guild.channels.fetch(cfg.logChannelId)
+            if (ch && typeof ch.send === 'function') {
+              await ch.send({ content: `📣 **Nuevo evento activado:** **${niceType}** — termina ${ends} — multiplicador: ${multiplierText}` })
+            }
+          } catch (err) {
+            const logger = require('#utils/logger').child({ service: 'events' })
+            logger.warn({ err }, 'No se pudo anunciar el evento en logChannelId')
+          }
+        }
+      } catch (err) {
+        // ignore errors announcing
+      }
       return
     }
 
@@ -59,7 +78,26 @@ module.exports = {
       const id = interaction.options.getString('id')
       await interaction.deferReply({ ephemeral: true })
       const ev = await eventManager.stopEvent(id)
-      await interaction.editReply(`Event stopped: ${ev.id}`)
+      await interaction.editReply(`✅ Evento detenido: **${ev.id}** — tipo: **${ev.type}**`)
+
+      // Announce stop in log channel
+      try {
+        const { getGuildConfig } = require('#services/guildConfig')
+        const cfg = await getGuildConfig(interaction.guild.id)
+        if (cfg && cfg.logChannelId) {
+          try {
+            const ch = interaction.guild.channels.cache.get(cfg.logChannelId) || await interaction.guild.channels.fetch(cfg.logChannelId)
+            if (ch && typeof ch.send === 'function') {
+              await ch.send({ content: `🛑 Evento detenido: **${ev.type}** (id: ${ev.id})` })
+            }
+          } catch (err) {
+            const logger = require('#utils/logger').child({ service: 'events' })
+            logger.warn({ err }, 'No se pudo anunciar la detención del evento en logChannelId')
+          }
+        }
+      } catch (err) {
+        // ignore
+      }
       return
     }
 
