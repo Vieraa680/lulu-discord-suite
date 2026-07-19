@@ -12,7 +12,7 @@ async function handleBuy(interaction) {
 
     await interaction.deferReply({ ephemeral: true })
 
-    const db = require('#services/database')
+    const db = require('../../services/database')
     const result = await db.purchaseItem(discordId, guildId, itemName)
 
     if (!result.success) {
@@ -39,8 +39,8 @@ async function handleBuy(interaction) {
                 await member.setNickname(newNickname, 'Voluntary polymorphia purchase')
             }
 
-            const { getOrCreateUser } = require('#services/database')
-            const { createPolymorphiaState } = require('#services/database/polymorphia')
+            const { getOrCreateUser } = require('../../services/database')
+            const { createPolymorphiaState } = require('../../services/database/polymorphia')
             const userDb = await getOrCreateUser(discordId, guildId, previousNickname)
             await createPolymorphiaState(userDb.id, guildId, previousNickname, newNickname, durationMinutes, true)
 
