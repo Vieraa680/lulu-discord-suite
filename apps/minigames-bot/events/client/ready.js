@@ -6,8 +6,10 @@ module.exports = {
     once: true,
 
     async execute(client) {
-        console.log(`Lulu is awake! Logged in as ${client.user.tag}`)
-        console.log(`Serving ${client.guilds.cache.size} guild(s)`)
+        const logger = require('#utils/logger')
+
+        logger.info({ tag: client.user?.tag }, 'Lulu is awake!')
+        logger.info({ guildCount: client.guilds.cache.size }, 'Serving guilds')
 
         startSweeper(client)
 
@@ -16,22 +18,22 @@ module.exports = {
 
         if (mode === 'global') {
             await registerSlashCommands(client)
-            console.log('[ready] Slash commands registered globally. Propagation can take up to 1 hour.')
+            logger.info('[ready] Slash commands registered globally. Propagation can take up to 1 hour.')
             return
         }
 
         if (mode !== 'guild') {
-            console.warn(`[ready] Unknown COMMAND_REGISTRATION_MODE="${mode}". Use "guild" or "global".`)
+            logger.warn({ mode }, 'Unknown COMMAND_REGISTRATION_MODE. Use "guild" or "global"')
             return
         }
 
         if (!guildId) {
-            console.warn('[ready] GUILD_ID not set. Skipping guild command registration.')
-            console.warn('[ready] Set COMMAND_REGISTRATION_MODE=global to register without GUILD_ID.')
+            logger.warn('[ready] GUILD_ID not set. Skipping guild command registration.')
+            logger.warn('[ready] Set COMMAND_REGISTRATION_MODE=global to register without GUILD_ID.')
             return
         }
 
-        console.log(`[ready] Registering slash commands in guild mode for ${guildId}.`)
+        logger.info({ guildId }, '[ready] Registering slash commands in guild mode')
         await registerSlashCommands(client, guildId)
     }
 }

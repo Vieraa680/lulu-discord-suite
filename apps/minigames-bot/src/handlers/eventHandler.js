@@ -1,11 +1,13 @@
 const fs = require('fs')
 const path = require('path')
+const baseLogger = require('#utils/logger')
 
 function loadEvents(client) {
+    const logger = baseLogger.child({ service: 'eventHandler' })
     const eventsPath = path.join(__dirname, '..', '..', 'events')
 
     if (!fs.existsSync(eventsPath)) {
-        console.warn(`[EventHandler] Events directory not found at ${eventsPath}. Skipping event loading.`)
+        logger.warn({ eventsPath }, 'Events directory not found. Skipping event loading.')
         return
     }
 
@@ -25,9 +27,7 @@ function loadEvents(client) {
                 const event = require(filePath)
 
                 if (!event.name || !event.execute) {
-                    console.warn(
-                        `[EventHandler] Skipping ${filePath}: missing required "name" or "execute" export.`
-                    )
+                    logger.warn({ filePath }, 'Skipping file: missing required "name" or "execute" export.')
                     continue
                 }
 
@@ -40,14 +40,13 @@ function loadEvents(client) {
                 }
 
                 loadedCount++
-                console.log(`[EventHandler] Registered event: ${event.name} (${category}, once: ${!!event.once})`)
+                logger.info({ event: event.name, category, once: !!event.once }, 'Registered event')
             } catch (error) {
-                console.error(`[EventHandler] Failed to load event ${filePath}:`, error.message)
+                logger.error({ err: error, filePath }, 'Failed to load event')
             }
         }
     }
-
-    console.log(`[EventHandler] Total events registered: ${loadedCount}`)
+    logger.info({ loadedCount }, 'Total events registered')
 }
 
 module.exports = { loadEvents }

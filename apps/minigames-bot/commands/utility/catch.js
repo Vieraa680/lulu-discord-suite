@@ -79,7 +79,8 @@ module.exports = {
                 'Atrapo una mariposa morada con /catch!'
             )
         } catch (error) {
-            console.error('[catchCommand] Database error while rewarding:', error.message)
+            const logger = require('#utils/logger').child({ command: 'catch' })
+            logger.error({ err: error }, 'Database error while rewarding')
         }
 
         await interaction.editReply(

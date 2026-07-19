@@ -11,7 +11,6 @@ const {
 const { iconifyUrlFromColor } = require('#services/icons')
 const { formatNumber } = require('#polymorphia/utils')
 
-// ── Category display metadata ──
 const LEADERBOARD_CATEGORIES = {
     candies: {
         label: 'Gominolas',
@@ -131,7 +130,8 @@ async function handleServerStats(interaction) {
 
         await interaction.editReply({ embeds: [embed] })
     } catch (error) {
-        console.error('[stats:server] Error:', error.message)
+        const logger = require('#utils/logger').child({ command: 'stats', subcommand: 'server' })
+        logger.error({ err: error }, 'Error fetching server stats')
         await interaction.editReply('ups, hubo un error al cargar las stats del server')
     }
 }
@@ -187,7 +187,8 @@ async function handleLeaderboard(interaction) {
 
         await interaction.editReply({ embeds: [embed] })
     } catch (error) {
-        console.error('[stats:leaderboard] Error:', error.message)
+        const logger = require('#utils/logger').child({ command: 'stats', subcommand: 'leaderboard' })
+        logger.error({ err: error }, 'Error fetching leaderboard')
         await interaction.editReply('ups, hubo un error al cargar el leaderboard')
     }
 }

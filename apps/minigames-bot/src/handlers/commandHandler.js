@@ -1,6 +1,8 @@
 const fs = require('fs')
 const path = require('path')
 const { Collection, REST, Routes } = require('discord.js')
+const baseLogger = require('#utils/logger')
+const logger = baseLogger.child({ service: 'commandHandler' })
 
 function loadCommands(client) {
     client.commands = new Collection()
@@ -8,7 +10,7 @@ function loadCommands(client) {
     const commandsPath = path.join(__dirname, '..', '..', 'commands')
 
     if (!fs.existsSync(commandsPath)) {
-        console.warn(`[CommandHandler] Commands directory not found at ${commandsPath}. Skipping command loading.`)
+        logger.warn({ commandsPath }, 'Commands directory not found. Skipping command loading.')
         return client.commands
     }
 
@@ -26,25 +28,21 @@ function loadCommands(client) {
                 const command = require(indexPath)
 
                 if (!command.data || !command.execute) {
-                    console.warn(
-                        `[CommandHandler] Skipping ${indexPath}: missing required "data" or "execute" export.`
-                    )
+                    logger.warn({ indexPath }, 'Skipping command: missing required "data" or "execute" export.')
                     continue
                 }
 
                 if (!command.data.name) {
-                    console.warn(
-                        `[CommandHandler] Skipping ${indexPath}: "data" must have a "name" property.`
-                    )
+                    logger.warn({ indexPath }, 'Skipping command: "data" must have a "name" property.')
                     continue
                 }
 
                 command.category = category
                 client.commands.set(command.data.name, command)
-                console.log(`[CommandHandler] Loaded slash command: ${command.data.name} (${category})`)
+                logger.info({ command: command.data.name, category }, 'Loaded slash command')
                 continue
             } catch (error) {
-                console.error(`[CommandHandler] Failed to load command ${indexPath}:`, error.message)
+                logger.error({ err: error, indexPath }, 'Failed to load command')
                 continue
             }
         }
@@ -58,35 +56,31 @@ function loadCommands(client) {
                 const command = require(filePath)
 
                 if (!command.data || !command.execute) {
-                    console.warn(
-                        `[CommandHandler] Skipping ${filePath}: missing required "data" or "execute" export.`
-                    )
+                    logger.warn({ filePath }, 'Skipping command: missing required "data" or "execute" export.')
                     continue
                 }
 
                 if (!command.data.name) {
-                    console.warn(
-                        `[CommandHandler] Skipping ${filePath}: "data" must have a "name" property.`
-                    )
+                    logger.warn({ filePath }, 'Skipping command: "data" must have a "name" property.')
                     continue
                 }
 
                 command.category = category
                 client.commands.set(command.data.name, command)
-                console.log(`[CommandHandler] Loaded slash command: ${command.data.name} (${category})`)
+                logger.info({ command: command.data.name, category }, 'Loaded slash command')
             } catch (error) {
-                console.error(`[CommandHandler] Failed to load command ${filePath}:`, error.message)
+                logger.error({ err: error, filePath }, 'Failed to load command')
             }
         }
     }
 
-    console.log(`[CommandHandler] Total slash commands loaded: ${client.commands.size}`)
+    logger.info({ total: client.commands.size }, 'Total slash commands loaded')
     return client.commands
 }
 
 async function registerSlashCommands(client, guildId) {
     if (!client.commands || client.commands.size === 0) {
-        console.warn('[CommandHandler] No slash commands to register.')
+        logger.warn('No slash commands to register.')
         return
     }
 
@@ -96,23 +90,22 @@ async function registerSlashCommands(client, guildId) {
 
     try {
         if (guildId) {
-            console.log(`[CommandHandler] Registering ${commandData.length} slash commands to guild ${guildId}...`)
+            logger.info({ count: commandData.length, guildId }, 'Registering slash commands to guild')
             await rest.put(
                 Routes.applicationGuildCommands(client.user.id, guildId),
                 { body: commandData }
             )
-            console.log(`[CommandHandler] Successfully registered ${commandData.length} guild slash commands.`)
+            logger.info({ count: commandData.length, guildId }, 'Successfully registered guild slash commands')
             return
         }
-
-        console.log(`[CommandHandler] Registering ${commandData.length} slash commands globally...`)
+        logger.info({ count: commandData.length }, 'Registering slash commands globally')
         await rest.put(
             Routes.applicationCommands(client.user.id),
             { body: commandData }
         )
-        console.log(`[CommandHandler] Successfully registered ${commandData.length} global slash commands.`)
+        logger.info({ count: commandData.length }, 'Successfully registered global slash commands')
     } catch (error) {
-        console.error('[CommandHandler] Failed to register slash commands:', error)
+        logger.error({ err: error }, 'Failed to register slash commands')
     }
 }
 

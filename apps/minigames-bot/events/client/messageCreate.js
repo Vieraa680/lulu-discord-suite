@@ -132,7 +132,8 @@ module.exports = {
                 }
             }, BUTTERFLY_LIFETIME_MS)
         } catch (error) {
-            console.error('[butterflySpawner] Failed to send butterfly message:', error.message)
+            const logger = require('#utils/logger')
+            logger.error({ err: error }, '[butterflySpawner] Failed to send butterfly message')
         }
     }
 }
