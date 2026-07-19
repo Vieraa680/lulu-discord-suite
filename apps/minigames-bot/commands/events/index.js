@@ -141,9 +141,36 @@ module.exports = {
     if (sub === 'list') {
       await interaction.deferReply({ ephemeral: true })
       const events = await eventManager.getActiveEvents(interaction.guild.id)
-      if (!events || events.length === 0) { await interaction.editReply('No active events'); return }
-      const lines = events.map(e => `${e.id} • ${e.type} • ${e.startsAt.toISOString()} → ${e.endsAt.toISOString()}`)
-      await interaction.editReply(lines.join('\n'))
+      if (!events || events.length === 0) { await interaction.editReply('No hay eventos activos'); return }
+
+      const niceTypeMap = {
+        double_candies: 'Doble Gominolas',
+        double_butterflies: 'Doble Mariposas',
+        tournament: 'Torneo',
+        boss: 'Jefe'
+      }
+
+      function formatRemaining(endsAt) {
+        const now = Date.now()
+        const delta = new Date(endsAt).getTime() - now
+        if (delta <= 0) return 'finalizado'
+        const mins = Math.floor(delta / 60000)
+        if (mins < 60) return `${mins}m restante`
+        const hrs = Math.floor(mins / 60)
+        const rem = mins % 60
+        return `${hrs}h ${rem}m restante`
+      }
+
+      const lines = events.map(e => {
+        const type = niceTypeMap[e.type] ?? e.type
+        const starts = new Date(e.startsAt).toLocaleString()
+        const ends = new Date(e.endsAt).toLocaleString()
+        const multiplier = e.payload?.multiplier ? `${e.payload.multiplier}×` : 'n/a'
+        const remaining = formatRemaining(e.endsAt)
+        return `• **${type}** (id: ${e.id})\n  • ${starts} → ${ends} (${remaining})\n  • Multiplicador: ${multiplier}`
+      })
+
+      await interaction.editReply(lines.join('\n\n'))
       return
     }
   }
