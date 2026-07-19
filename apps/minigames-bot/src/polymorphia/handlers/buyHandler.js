@@ -47,8 +47,13 @@ async function handleBuy(interaction) {
             await interaction.followUp({ content: `Se aplicó la forma **${item.name}** por **${durationMinutes} minutos**.`, ephemeral: true })
         }
     } catch (err) {
-        const logger = require('#utils/logger').child({ service: 'polymorphia', action: 'buy' })
-        logger.error({ err }, 'Failed to apply voluntary form after buy command')
+        let logger
+        try {
+            logger = require('#utils/logger')
+        } catch {
+            logger = { child: () => ({ error: console.error }) }
+        }
+        logger.child({ service: 'polymorphia', action: 'buy' }).error({ err }, 'Failed to apply voluntary form after buy command')
         try { await interaction.followUp({ content: 'La compra se completó pero no se pudo aplicar la forma (permisos). Está en tu inventario.', ephemeral: true }) } catch {}
     }
 }
