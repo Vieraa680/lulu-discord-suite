@@ -1,0 +1,204 @@
+// ──────────────────────────────────────────────
+// Lulu Discord Suite — Shared Database Schema
+// ──────────────────────────────────────────────
+// This schema powers both Discord bots and the
+// CRM dashboard. Keep it in sync across all apps.
+// ──────────────────────────────────────────────
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ──────────────────────────────────────────────
+// USER
+// ──────────────────────────────────────────────
+// Represents a Discord user's data within a single guild.
+// A user can have multiple rows — one per guild they interact with.
+// The `discordId` + `guildId` pair is unique.
+model User {
+  id        String @id @default(uuid()) // Surrogate primary key
+  discordId String                      // Discord User snowflake
+  guildId   String                      // Discord Server ID
+
+  username   String @default("")
+  globalName String?
+  avatarUrl  String?
+
+  // ── Economy ──
+  candies     Int @default(0) // Main currency ("candies")
+  totalEarned Int @default(0) // Lifetime candies earned
+  totalSpent  Int @default(0) // Lifetime candies spent
+
+  // ── Polymorphia stats ──
+  polymorphiaWins   Int @default(0)
+  polymorphiaLosses Int @default(0)
+  polymorphiaSaved  Int @default(0) // Successful defenses
+
+  // ── Polymorphia cooldowns ──
+  lastPolymorphiaUse      DateTime?  // When the user last initiated a polymorphia duel (10 min cooldown)
+  polymorphiaProtectedUntil DateTime? // Until when the user is immune to being targeted (4h protection)
+  dailyDuelCount          Int        @default(0)  // Duels initiated today (resets daily)
+  dailyDuelDate           DateTime?               // Date of last duel initiation (for daily reset detection)
+  // ── Daily rewards tracking ──
+  lastDailyClaim          DateTime?  // When the user last claimed the daily reward
+  dailyStreak             Int        @default(0) // Current daily claim streak
+
+  // ── Relations ──
+  state        PolymorphiaState?
+  items        UserItem[]
+  transactions Transaction[]
+  achievements UserAchievement[]
+
+  // ── Timestamps ──
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([discordId, guildId])
+  @@index([discordId])
+  @@index([guildId])
+}
+
+// ──────────────────────────────────────────────
+// GUILD CONFIG
+// ──────────────────────────────────────────────
+// Per-guild configuration with sensible defaults used by the bot.
+model GuildConfig {
+  id                       String   @id @default(uuid())
+  guildId                  String   @unique
+  veteranRoleName          String   @default("Invocador Veterano")
+  butterflyExcludedChannels String[] @default([])
+  butterflyMultiplier      Float    @default(1.0)
+  candyMultiplier          Float    @default(1.0)
+  polymorphiaMinBet        Int      @default(1)
+  polymorphiaMaxBet        Int      @default(1000)
+  adminRoleId              String?
+  logChannelId             String?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+}
+
+// ──────────────────────────────────────────────
+// POLYMORPHIA STATE
+// ──────────────────────────────────────────────
+// Tracks the active polymorphia game state per user.
+model PolymorphiaState {
+  id          String    @id @default(uuid())
+  userId      String    @unique
+  guildId     String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  isActive         Boolean  @default(false)    // Is the user currently polymorphed?
+  currentForm      String   @default("")       // e.g. "yuumi", "teemo", "poro"
+  previousNickname String   @default("")       // Original nickname to restore on expiration
+  isVoluntary      Boolean  @default(false)     // True when form was applied voluntarily via shop
+  formDuration     Int      @default(0)        // Duration in minutes
+  startedAt        DateTime?                   // When the current form started
+  endsAt           DateTime?                   // When the current form expires
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// ──────────────────────────────────────────────
+// ITEM
+// ──────────────────────────────────────────────
+// Catalog of collectible / purchasable items.
+// Used by minigames and the shop system.
+model Item {
+  id            String     @id @default(uuid())
+  name          String     @unique
+  description   String     @default("")
+  emoji         String     @default("🎁")     // Discord emoji for display
+  price         Int        @default(0)        // Cost in candies (0 = not for sale)
+  category      String     @default("general") // e.g. "butterfly", "consumable", "cosmetic"
+  rarity        String     @default("common")  // common / uncommon / rare / epic / legendary
+  isCollectible Boolean    @default(false)    // Can be found via minigames?
+  isActive      Boolean    @default(true)     // Soft-delete / disable flag
+  // Optional per-item duration for cosmetic forms (minutes). Null for non-forms.
+  formDuration  Int?
+
+  owners        UserItem[]
+
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+}
+
+// ──────────────────────────────────────────────
+// USER ITEM (Inventory junction)
+// ──────────────────────────────────────────────
+// Tracks how many of a given item a user owns.
+model UserItem {
+  id        String   @id @default(uuid())
+  userId    String
+  itemId    String
+  quantity  Int      @default(1)
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  item      Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, itemId])
+  @@index([userId])
+  @@index([itemId])
+}
+
+// ──────────────────────────────────────────────
+// TRANSACTION
+// ──────────────────────────────────────────────
+// Immutable audit log of every candy movement.
+model Transaction {
+  id           String   @id @default(uuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type         String   // "earn" | "spend" | "refund" | "admin"
+  amount       Int      // Positive amount (sign is derived from type)
+  balanceAfter Int      // User's candies balance after this transaction
+  description  String   @default("")  // e.g. "Caught a butterfly!", "Bought Yuumi form"
+
+  referenceId  String?  // Optional: links to a related entity (itemId, gameId, etc.)
+
+  createdAt    DateTime @default(now())
+
+  @@index([userId])
+  @@index([createdAt])
+}
+
+// ──────────────────────────────────────────────
+// ACHIEVEMENT
+// ──────────────────────────────────────────────
+// Catalog of unlockable badges/achievements.
+model Achievement {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String
+  emoji       String   @default("🏅")
+  category    String   // "polymorphia", "economy", "butterfly", "general"
+  requirement String   // e.g. "polymorphiaWins >= 10"
+  createdAt   DateTime @default(now())
+
+  unlockedBy UserAchievement[]
+}
+
+// ──────────────────────────────────────────────
+// USER ACHIEVEMENT (Unlock junction)
+// ──────────────────────────────────────────────
+// Tracks which achievements each user has unlocked.
+model UserAchievement {
+  id            String      @id @default(uuid())
+  userId        String
+  achievementId String
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  achievement   Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
+  unlockedAt    DateTime    @default(now())
+
+  @@unique([userId, achievementId])
+  @@index([userId])
+  @@index([achievementId])
+}
