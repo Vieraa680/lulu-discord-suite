@@ -7,7 +7,7 @@ module.exports = {
         .setDescription('Mostrá tus logros desbloqueados en el servidor.')
         .addUserOption(option =>
             option
-                .setName('usuario')
+                .setName('user')
                 .setDescription('Usuario del que querés ver los logros (por defecto, vos).')
                 .setRequired(false)
         ),
@@ -15,7 +15,7 @@ module.exports = {
     async execute(interaction) {
         await interaction.deferReply({ ephemeral: true })
 
-        const targetUser = interaction.options.getUser('usuario') || interaction.user
+        const targetUser = interaction.options.getUser('user') || interaction.user
         const member = interaction.guild.members.cache.get(targetUser.id)
         const displayName = member?.displayName || targetUser.username
 
