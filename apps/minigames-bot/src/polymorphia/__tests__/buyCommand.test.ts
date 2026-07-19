@@ -43,7 +43,7 @@ describe('polymorphia buy command', () => {
     db.purchaseItem = vi.fn().mockResolvedValue({ success: true, item: { name: 'Forma Yuumi', category: 'form', rarity: 'common' } })
     db.getOrCreateUser = vi.fn().mockResolvedValue({ id: 'u1' })
     // mock polymorphia helper
-    const pol = require('#services/database/polymorphia')
+    const pol = require('../../services/database/polymorphia')
     pol.createPolymorphiaState = vi.fn().mockResolvedValue({})
 
     const cmd = require('../../../commands/polymorphia/index.js')
