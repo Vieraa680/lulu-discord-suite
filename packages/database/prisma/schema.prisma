@@ -64,6 +64,25 @@ model User {
 }
 
 // ──────────────────────────────────────────────
+// GUILD CONFIG
+// ──────────────────────────────────────────────
+// Per-guild configuration with sensible defaults used by the bot.
+model GuildConfig {
+  id                       String   @id @default(uuid())
+  guildId                  String   @unique
+  veteranRoleName          String   @default("Invocador Veterano")
+  butterflyExcludedChannels String[] @default([])
+  butterflyMultiplier      Float    @default(1.0)
+  candyMultiplier          Float    @default(1.0)
+  polymorphiaMinBet        Int      @default(1)
+  polymorphiaMaxBet        Int      @default(1000)
+  adminRoleId              String?
+  logChannelId             String?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+}
+
+// ──────────────────────────────────────────────
 // POLYMORPHIA STATE
 // ──────────────────────────────────────────────
 // Tracks the active polymorphia game state per user.
