@@ -1,5 +1,6 @@
 const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js')
 const { handleDuel } = require('#polymorphia/handlers/duelHandler')
+const { handleBuy } = require('#polymorphia/handlers/buyHandler')
 const { iconifyUrlFromColor } = require('#services/icons')
 
 module.exports = {
@@ -28,6 +29,17 @@ module.exports = {
             sub
                 .setName('shop')
                 .setDescription('Navega por la tienda de objetos de Polymorphia')
+        )
+        .addSubcommand(sub =>
+            sub
+                .setName('buy')
+                .setDescription('Compra un objeto de la tienda por nombre')
+                .addStringOption(opt =>
+                    opt
+                        .setName('item')
+                        .setDescription('Nombre del objeto a comprar (exacto)')
+                        .setRequired(true)
+                )
         )
         .addSubcommand(sub =>
             sub
@@ -69,6 +81,9 @@ module.exports = {
 
             case 'shop':
                 await handleShop(interaction, client)
+                break
+            case 'buy':
+                await handleBuy(interaction, client)
                 break
 
             case 'inventory':
@@ -136,13 +151,19 @@ async function handleShop(interaction) {
             const rarityColor = colorFromRarity(item.rarity)
             const canAfford = user.candies >= item.price
 
+            // Include formDuration for cosmetic forms when present
+            const durationLine = item.category === 'form'
+                ? `**Duración:** ${item.formDuration ? `${item.formDuration} minutos` : 'variable'}`
+                : null
+
             embed.addFields({
                 name: item.name,
                 value: [
                     `**Precio:** ${item.price} 🍬`,
+                    durationLine,
                     `*${item.description || getDefaultDescription(item)}*`,
                     `**Rareza:** \`${item.rarity.toUpperCase()}\``
-                ].join('\n'),
+                ].filter(Boolean).join('\n'),
                 inline: true
             })
 
@@ -169,6 +190,63 @@ async function handleShop(interaction) {
         logger.error({ err: error }, 'Error loading shop data')
         await interaction.editReply('error al cargar la tienda, intentá de nuevo')
     }
+}
+
+async function handleBuy(interaction) {
+    const itemName = interaction.options.getString('item')
+    const guildId = interaction.guild.id
+    const discordId = interaction.user.id
+
+    if (!itemName) {
+        await interaction.reply({ content: 'debes indicar el nombre del objeto a comprar', ephemeral: true })
+        return
+    }
+
+    await interaction.deferReply({ ephemeral: true })
+
+    const result = await require('#services/database').purchaseItem(discordId, guildId, itemName)
+
+    if (!result.success) {
+        await interaction.editReply({ content: result.error || 'compra fallida' })
+        return
+    }
+
+    await interaction.editReply({ content: `Has comprado **${itemName}**. Revisa tu inventario o usa /polymorphia inventory.` })
+
+    // Apply voluntary form if it's a form item (same flow as button handler)
+    try {
+        const item = result.item || await require('#services/database').prisma.item.findUnique({ where: { name: itemName } })
+        if (item && item.category === 'form') {
+            const member = await interaction.guild.members.fetch(discordId)
+            const botMember = interaction.guild.members.me
+            const canManage = botMember.permissions.has(require('discord.js').PermissionFlagsBits.ManageNicknames)
+
+            const previousNickname = member.nickname || member.displayName || member.user.username
+            const newNickname = item.name
+            const durationMap = { common: 15, uncommon: 30, rare: 60, epic: 120, legendary: 240 }
+            const durationMinutes = durationMap[item.rarity] || 30
+
+            if (canManage && botMember.roles.highest.comparePositionTo(member.roles.highest) > 0) {
+                await member.setNickname(newNickname, 'Voluntary polymorphia purchase')
+            }
+
+            const { getOrCreateUser } = require('#services/database')
+            const { createPolymorphiaState } = require('#services/database/polymorphia')
+            const userDb = await getOrCreateUser(discordId, guildId, previousNickname)
+            await createPolymorphiaState(userDb.id, guildId, previousNickname, newNickname, durationMinutes, true)
+
+            await interaction.followUp({ content: `Se aplicó la forma **${item.name}** por **${durationMinutes} minutos**.`, ephemeral: true })
+        }
+    } catch (err) {
+        const logger = require('#utils/logger').child({ service: 'polymorphia', action: 'buy' })
+        logger.error({ err }, 'Failed to apply voluntary form after buy command')
+        try { await interaction.followUp({ content: 'La compra se completó pero no se pudo aplicar la forma (permisos). Está en tu inventario.', ephemeral: true }) } catch {}
+    }
+}
+
+// Export a test hook for the handler to allow unit testing without full Discord Interaction
+if (process.env.NODE_ENV === 'test') {
+    module.exports.__testHandleBuy = handleBuy
 }
 
 async function handleInventory(interaction) {

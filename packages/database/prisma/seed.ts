@@ -31,10 +31,10 @@ const ITEMS = [
   { name: "Mariposa Luminosa",  emoji: "🦋", category: "butterfly", rarity: "legendary",price: 0,   isCollectible: true },
 
   // ── Polymorphia Forms (cosmetics) ──
-  { name: "Forma Yuumi",        emoji: "🐱", category: "form",     rarity: "common",   price: 50,  isCollectible: false },
-  { name: "Forma Teemo",        emoji: "🐭", category: "form",     rarity: "uncommon", price: 100, isCollectible: false },
-  { name: "Forma Poro",         emoji: "❄️", category: "form",     rarity: "rare",     price: 200, isCollectible: false },
-  { name: "Forma Gato Lunar",   emoji: "🌙", category: "form",     rarity: "epic",     price: 500, isCollectible: false },
+  { name: "Forma Yuumi",        emoji: "🐱", category: "form",     rarity: "common",   price: 50,  isCollectible: false, formDuration: 15 },
+  { name: "Forma Teemo",        emoji: "🐭", category: "form",     rarity: "uncommon", price: 100, isCollectible: false, formDuration: 30 },
+  { name: "Forma Poro",         emoji: "❄️", category: "form",     rarity: "rare",     price: 200, isCollectible: false, formDuration: 60 },
+  { name: "Forma Gato Lunar",   emoji: "🌙", category: "form",     rarity: "epic",     price: 500, isCollectible: false, formDuration: 120 },
 
   // ── Consumables ──
   { name: "Red de Mariposas",        emoji: "🪤", category: "consumable", rarity: "common",   price: 10,  isCollectible: false },

@@ -122,7 +122,7 @@ async function purchaseItem(discordId, guildId, itemName) {
             })
         ])
 
-        return { success: true }
+        return { success: true, item }
     } catch (error) {
         const logger = require('#utils/logger').child({ service: 'database.items' })
         logger.error({ err: error }, 'purchaseItem failed')
