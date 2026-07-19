@@ -33,14 +33,14 @@ beforeEach(() => {
 describe('EventManager', () => {
   it('getActiveEvents filters only currently active events', async () => {
     const now = Date.now()
-    const past = new Date(now - 1000 * 60 * 60).toISOString()
-    const future = new Date(now + 1000 * 60 * 60).toISOString()
-    const future2 = new Date(now + 1000 * 60 * 60 * 2).toISOString()
+    const past = new Date(now - 1000 * 60 * 60)
+    const future = new Date(now + 1000 * 60 * 60)
+    const future2 = new Date(now + 1000 * 60 * 60 * 2)
 
     mockPrisma.event.findMany.mockResolvedValue([
       { id: 'a', guildId: 'G1', type: 'double_candies', startsAt: past, endsAt: future2, isActive: true, payload: {} },
       { id: 'b', guildId: 'G1', type: 'boss', startsAt: future, endsAt: future2, isActive: true, payload: {} }, // not started yet
-      { id: 'c', guildId: 'G1', type: 'tournament', startsAt: past, endsAt: new Date(now - 1000).toISOString(), isActive: true, payload: {} } // already ended
+      { id: 'c', guildId: 'G1', type: 'tournament', startsAt: past, endsAt: new Date(now - 1000), isActive: true, payload: {} } // already ended
     ])
 
     const active = await eventManager.getActiveEvents('G1')
@@ -51,7 +51,7 @@ describe('EventManager', () => {
   })
 
   it('createEvent adds default multiplier for double types and refreshes cache', async () => {
-    const created = { id: 'new1', guildId: 'G1', type: 'double_candies', payload: { multiplier: 2 }, startsAt: new Date().toISOString(), endsAt: new Date(Date.now() + 1000 * 60 * 60).toISOString(), isActive: true }
+    const created = { id: 'new1', guildId: 'G1', type: 'double_candies', payload: { multiplier: 2 }, startsAt: new Date(), endsAt: new Date(Date.now() + 1000 * 60 * 60), isActive: true }
     mockPrisma.event.create.mockResolvedValue(created)
     // ensure refresh after create will call findMany
     mockPrisma.event.findMany.mockResolvedValue([created])
