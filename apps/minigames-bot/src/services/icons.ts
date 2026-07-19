@@ -1,7 +1,11 @@
 const ICONIFY_API_BASE = 'https://api.iconify.design'
 
-// @type {Record<string, { iconify: string, char: string }>}
-const ICON_DEFS = {
+interface IconDef {
+    iconify: string
+    char: string
+}
+
+const ICON_DEFS: Record<string, IconDef> = {
     // ── Combat / Duel ──
     SWORDS:       { iconify: 'mdi:sword-cross',      char: '⚔️' },
     SWORD:        { iconify: 'mdi:sword',             char: '⚔️' },
@@ -33,8 +37,8 @@ const ICON_DEFS = {
     MEDAL:        { iconify: 'mdi:medal',             char: '🎖️' },
 }
 
-// Build exported object: each constant resolves to the Unicode string for Discord
-const ICONS = {}
+// Build ICONS object with Unicode chars for Discord
+const ICONS: Record<string, string | typeof iconifyUrl | typeof iconifyUrlFromColor | typeof ICON_DEFS> = {}
 for (const [key, def] of Object.entries(ICON_DEFS)) {
     ICONS[key] = def.char
 }
@@ -44,31 +48,31 @@ ICONS.ICON_DEFS = ICON_DEFS
 
 /**
  * Resolve an icon name to its Unicode character.
- * @param {string} name - Uppercase icon key (e.g. 'SWORDS')
- * @returns {string} Unicode emoji or empty string if not found
+ * @param name - Uppercase icon key (e.g. 'SWORDS')
+ * @returns Unicode emoji or empty string if not found
  */
-ICONS.resolve = (name) => ICON_DEFS[name]?.char || ''
+ICONS.resolve = (name: string): string => ICON_DEFS[name]?.char || ''
 
 /**
  * Resolve an icon name to its Iconify identifier.
- * @param {string} name - Uppercase icon key (e.g. 'SWORDS')
- * @returns {string} Iconify ID (e.g. 'mdi:sword-cross') or empty string
+ * @param name - Uppercase icon key (e.g. 'SWORDS')
+ * @returns Iconify ID (e.g. 'mdi:sword-cross') or empty string
  */
-ICONS.resolveIconify = (name) => ICON_DEFS[name]?.iconify || ''
+ICONS.resolveIconify = (name: string): string => ICON_DEFS[name]?.iconify || ''
 
 /**
  * Generate a URL to an Iconify icon via the public API.
  * Uses PNG format because Discord's media proxy doesn't render SVGs reliably.
  *
- * @param {string} name     - Uppercase icon key (e.g. 'SWORDS')
- * @param {string} [color]  - Optional hex color (e.g. '#9B59B6')
- * @returns {string} Full Iconify API URL, or empty string if not found
+ * @param name  - Uppercase icon key (e.g. 'SWORDS')
+ * @param color - Optional hex color (e.g. '#9B59B6')
+ * @returns Full Iconify API URL, or empty string if not found
  *
  * @example
  *   embed.setThumbnail(iconifyUrl('SWORDS', '#9B59B6'))
  *   // → https://api.iconify.design/mdi/sword-cross.png?color=%239B59B6
  */
-function iconifyUrl(name, color) {
+function iconifyUrl(name: string, color?: string): string {
     const iconify = ICON_DEFS[name]?.iconify
     if (!iconify) return ''
 
@@ -84,14 +88,14 @@ function iconifyUrl(name, color) {
 /**
  * Shortcut to get an Iconify URL using a Discord embed color number.
  *
- * @param {string} name      - Uppercase icon key
- * @param {number} hexColor  - Discord embed color as number (e.g. 0x9B59B6)
- * @returns {string} Full Iconify API URL
+ * @param name     - Uppercase icon key
+ * @param hexColor - Discord embed color as number (e.g. 0x9B59B6)
+ * @returns Full Iconify API URL
  *
  * @example
  *   embed.setThumbnail(iconifyUrlFromColor('SWORDS', 0x9B59B6))
  */
-function iconifyUrlFromColor(name, hexColor) {
+function iconifyUrlFromColor(name: string, hexColor: number): string {
     const hex = typeof hexColor === 'number'
         ? `#${hexColor.toString(16).padStart(6, '0')}`
         : hexColor
@@ -101,4 +105,4 @@ function iconifyUrlFromColor(name, hexColor) {
 ICONS.iconifyUrl = iconifyUrl
 ICONS.iconifyUrlFromColor = iconifyUrlFromColor
 
-module.exports = ICONS
+export = ICONS

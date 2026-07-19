@@ -5,12 +5,12 @@ const PROGRESS_BAR_LENGTH = 12
 /**
  * Render a visual progress bar.
  *
- * @param {number} current   Current value (e.g. elapsed ms)
- * @param {number} max       Maximum value (e.g. total cooldown ms)
- * @param {number} [length]  Number of segments in the bar (default 12)
- * @returns {string}  e.g. "▓▓▓▓▓▓░░░░░░ 50%"
+ * @param current - Current value (e.g. elapsed ms)
+ * @param max     - Maximum value (e.g. total cooldown ms)
+ * @param length  - Number of segments in the bar (default 12)
+ * @returns       - Progress bar
  */
-function progressBar(current, max, length = PROGRESS_BAR_LENGTH) {
+function progressBar(current: number, max: number, length: number = PROGRESS_BAR_LENGTH): string {
     if (max <= 0) return `${PROGRESS_FULL.repeat(length)} 100%`
     const ratio = Math.min(Math.max(current / max, 0), 1)
     const filled = Math.round(ratio * length)
@@ -23,12 +23,12 @@ function progressBar(current, max, length = PROGRESS_BAR_LENGTH) {
  * Render a countdown / cooldown bar.
  * Shows time remaining instead of percentage.
  *
- * @param {number} remainingMs  Milliseconds remaining
- * @param {number} totalMs      Total duration in milliseconds
- * @param {number} [length]     Bar length (default 12)
- * @returns {string}  e.g. "▓▓▓▓▓▓░░░░░░ 3m 42s"
+ * @param remainingMs - Milliseconds remaining
+ * @param totalMs     - Total duration in milliseconds
+ * @param length      - Bar length (default 12)
+ * @returns           - Progress bar
  */
-function cooldownBar(remainingMs, totalMs, length = PROGRESS_BAR_LENGTH) {
+function cooldownBar(remainingMs: number, totalMs: number, length: number = PROGRESS_BAR_LENGTH): string {
     if (totalMs <= 0) return `${PROGRESS_FULL.repeat(length)} 0s`
     const ratio = Math.min(Math.max(remainingMs / totalMs, 0), 1)
     const filled = Math.round(ratio * length)
@@ -42,31 +42,31 @@ function cooldownBar(remainingMs, totalMs, length = PROGRESS_BAR_LENGTH) {
 
 /**
  * Format a Discord timestamp for relative display.
- * @param {Date|number} date
- * @returns {string} Discord relative timestamp string
+ * @param date - Date object or Unix timestamp in milliseconds
+ * @returns Discord relative timestamp string
  */
-function relativeTimestamp(date) {
+function relativeTimestamp(date: Date | number): string {
     const ms = date instanceof Date ? date.getTime() : date
     return `<t:${Math.floor(ms / 1000)}:R>`
 }
 
 /**
  * Format a Discord timestamp for short datetime display.
- * @param {Date|number} date
- * @returns {string} Discord short datetime string
+ * @param date - Date object or Unix timestamp in milliseconds
+ * @returns Discord short datetime string
  */
-function shortTimestamp(date) {
+function shortTimestamp(date: Date | number): string {
     const ms = date instanceof Date ? date.getTime() : date
     return `<t:${Math.floor(ms / 1000)}:f>`
 }
 
 /**
  * Get an embed color based on a rarity string.
- * @param {string} rarity
- * @returns {number} Hex color as number
+ * @param rarity
+ * @returns Hex color as number
  */
-function colorFromRarity(rarity) {
-    const colors = {
+function colorFromRarity(rarity: string): number {
+    const colors: Record<string, number> = {
         common: 0x95A5A6,
         uncommon: 0x2ECC71,
         rare: 0x3498DB,
@@ -78,14 +78,14 @@ function colorFromRarity(rarity) {
 
 /**
  * Format a number with locale separators.
- * @param {number} n
- * @returns {string}
+ * @param n
+ * @returns Formatted number string
  */
-function formatNumber(n) {
+function formatNumber(n: number): string {
     return n.toLocaleString('en-US')
 }
 
-module.exports = {
+export {
     progressBar,
     cooldownBar,
     relativeTimestamp,

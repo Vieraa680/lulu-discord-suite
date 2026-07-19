@@ -1,4 +1,4 @@
-const FALLBACK_NICKNAMES = [
+const FALLBACK_NICKNAMES: string[] = [
     // ── Estilo 1: Temáticos de LoL (clásico) ──
     'Yuumi la Encantadora',
     'El Puño de Sett',
@@ -17,7 +17,7 @@ const FALLBACK_NICKNAMES = [
     'El Dragón de Shyvana',
     'Nami la Iniciadora',
     'El Poder de Vi',
-    'Kai\'Sa la Hija del Vacío',
+    "Kai'Sa la Hija del Vacío",
     'El Trueno de Volibear',
     'Lulu la Hechicera',
     'La Danza de Katarina',
@@ -56,16 +56,15 @@ const FALLBACK_NICKNAMES = [
 
 /**
  * Get a random fallback nickname from the pool.
- * Optionally prepends the username for variety.
- * @param {string} username - Discord display name (ignored, pool is fixed)
- * @returns {string} A random nickname
+ * @param _username - Discord display name (ignored, pool is fixed)
+ * @returns A random nickname
  */
-function getRandomFallbackNickname(username) {
+function getRandomFallbackNickname(_username: string): string {
     const index = Math.floor(Math.random() * FALLBACK_NICKNAMES.length)
     return FALLBACK_NICKNAMES[index]
 }
 
-module.exports = {
+export {
     getRandomFallbackNickname,
     FALLBACK_NICKNAMES
 }
