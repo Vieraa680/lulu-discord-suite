@@ -60,4 +60,4 @@ async function stopEventsByType(guildId, type) {
   return res.count || res.countUpdated || 0
 }
 
-module.exports = { getActiveEvents, isEventActive, createEvent, stopEvent }
+module.exports = { getActiveEvents, isEventActive, createEvent, stopEvent, stopEventsByType }

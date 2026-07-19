@@ -63,7 +63,7 @@ module.exports = {
       const note = existing.length > 0 ? `\nNota: ya había **${existing.length}** evento(s) activos de este tipo; el nuevo coexistirá con ellos.` : ''
       await interaction.editReply({ content: message + note })
 
-      // Announce in configured guild log channel if present
+      // Announce in configured guild log channel if present (embed)
       try {
         const { getGuildConfig } = require('#services/guildConfig')
         const cfg = await getGuildConfig(interaction.guild.id)
@@ -71,7 +71,28 @@ module.exports = {
           try {
             const ch = interaction.guild.channels.cache.get(cfg.logChannelId) || await interaction.guild.channels.fetch(cfg.logChannelId)
             if (ch && typeof ch.send === 'function') {
-              await ch.send({ content: `📣 **Nuevo evento activado:** **${niceType}** — termina ${ends} — multiplicador: ${multiplierText}` })
+              const { EmbedBuilder } = require('discord.js')
+              const map = {
+                double_candies: { emoji: '🍬', color: 0xE67E22 },
+                double_butterflies: { emoji: '🦋', color: 0x9B59B6 },
+                tournament: { emoji: '🏆', color: 0x2ECC71 },
+                boss: { emoji: '👹', color: 0xE74C3C }
+              }
+              const meta = map[ev.type] || { emoji: '🎫', color: 0x95A5A6 }
+              const emb = new EmbedBuilder()
+                .setTitle('📣 Nuevo evento activado')
+                .setDescription(`**${niceType}** ha sido activado en este servidor.`)
+                .addFields(
+                  { name: 'Tipo', value: `${meta.emoji} ${niceType}`, inline: true },
+                  { name: 'Duración', value: `${duration} minutos`, inline: true },
+                  { name: 'Multiplicador', value: `${multiplierText}`, inline: true },
+                  { name: 'Termina', value: `${ends}`, inline: false },
+                  { name: 'ID', value: ev.id, inline: false }
+                )
+                .setTimestamp()
+                .setColor(meta.color)
+
+              await ch.send({ embeds: [emb] })
             }
           } catch (err) {
             const logger = require('#utils/logger').child({ service: 'events' })
@@ -88,9 +109,16 @@ module.exports = {
       const id = interaction.options.getString('id')
       await interaction.deferReply({ ephemeral: true })
       const ev = await eventManager.stopEvent(id)
-      await interaction.editReply(`✅ Evento detenido: **${ev.id}** — tipo: **${ev.type}**`)
+      // Reply to admin
+      await interaction.editReply({ content: undefined, embeds: [
+        new (require('discord.js').EmbedBuilder)()
+          .setTitle('🛑 Evento detenido')
+          .setDescription(`Se detuvo el evento **${ev.type}**`)
+          .addFields({ name: 'ID', value: ev.id, inline: false })
+          .setTimestamp()
+      ] })
 
-      // Announce stop in log channel
+      // Announce stop in log channel (embed)
       try {
         const { getGuildConfig } = require('#services/guildConfig')
         const cfg = await getGuildConfig(interaction.guild.id)
@@ -98,7 +126,12 @@ module.exports = {
           try {
             const ch = interaction.guild.channels.cache.get(cfg.logChannelId) || await interaction.guild.channels.fetch(cfg.logChannelId)
             if (ch && typeof ch.send === 'function') {
-              await ch.send({ content: `🛑 Evento detenido: **${ev.type}** (id: ${ev.id})` })
+              const emb = new (require('discord.js').EmbedBuilder)()
+                .setTitle('🛑 Evento detenido')
+                .setDescription(`El evento **${ev.type}** ha sido detenido.`)
+                .addFields({ name: 'ID', value: ev.id, inline: false })
+                .setTimestamp()
+              await ch.send({ embeds: [emb] })
             }
           } catch (err) {
             const logger = require('#utils/logger').child({ service: 'events' })
@@ -115,9 +148,9 @@ module.exports = {
       const type = interaction.options.getString('type')
       await interaction.deferReply({ ephemeral: true })
       const count = await eventManager.stopEventsByType(interaction.guild.id, type)
-      await interaction.editReply(`🛑 Se detuvieron **${count}** evento(s) del tipo **${type}** en este servidor.`)
+      await interaction.editReply({ embeds: [new (require('discord.js').EmbedBuilder)().setTitle('🛑 Eventos detenidos').setDescription(`Se detuvieron **${count}** evento(s) del tipo **${type}** en este servidor.`).setTimestamp()] })
 
-      // announce in log channel if present
+      // announce in log channel if present (embed)
       try {
         const { getGuildConfig } = require('#services/guildConfig')
         const cfg = await getGuildConfig(interaction.guild.id)
@@ -125,7 +158,11 @@ module.exports = {
           try {
             const ch = interaction.guild.channels.cache.get(cfg.logChannelId) || await interaction.guild.channels.fetch(cfg.logChannelId)
             if (ch && typeof ch.send === 'function') {
-              await ch.send({ content: `🛑 Se detuvieron ${count} evento(s) del tipo **${type}**` })
+              const emb = new (require('discord.js').EmbedBuilder)()
+                .setTitle('🛑 Eventos detenidos')
+                .setDescription(`Se detuvieron **${count}** evento(s) del tipo **${type}** en este servidor.`)
+                .setTimestamp()
+              await ch.send({ embeds: [emb] })
             }
           } catch (err) {
             const logger = require('#utils/logger').child({ service: 'events' })
@@ -161,28 +198,56 @@ module.exports = {
         return `${hrs}h ${rem}m restante`
       }
 
-      const embed = new EmbedBuilder()
-        .setTitle('Eventos activos')
-        .setDescription(`Hay **${events.length}** evento(s) activo(s) en este servidor`)
-        .setTimestamp()
+      // Pagination
+      const pageSize = 3
+      const pages = []
+      for (let i = 0; i < events.length; i += pageSize) {
+        const slice = events.slice(i, i + pageSize)
+        const embed = new EmbedBuilder()
+          .setTitle('Eventos activos')
+          .setDescription(`Hay **${events.length}** evento(s) activo(s) en este servidor`)
+          .setTimestamp()
 
-      for (const e of events) {
-        const meta = niceTypeMap[e.type] || { label: e.type, emoji: '🎫', color: 0x95A5A6 }
-        const starts = `<t:${Math.floor(new Date(e.startsAt).getTime() / 1000)}:f>`
-        const ends = `<t:${Math.floor(new Date(e.endsAt).getTime() / 1000)}:f>`
-        const remaining = formatRemaining(e.endsAt)
-        const multiplier = e.payload?.multiplier ? `${e.payload.multiplier}×` : 'N/A'
+        for (const e of slice) {
+          const meta = niceTypeMap[e.type] || { label: e.type, emoji: '🎫', color: 0x95A5A6 }
+          const starts = `<t:${Math.floor(new Date(e.startsAt).getTime() / 1000)}:f>`
+          const ends = `<t:${Math.floor(new Date(e.endsAt).getTime() / 1000)}:f>`
+          const remaining = formatRemaining(e.endsAt)
+          const multiplier = e.payload?.multiplier ? `${e.payload.multiplier}×` : 'N/A'
 
-        embed.addFields({
-          name: `${meta.emoji} ${meta.label} — ${e.id.slice(0, 8)}`,
-          value: `**Inicio:** ${starts}\n**Fin:** ${ends} (${remaining})\n**Multiplicador:** ${multiplier}`,
-          inline: false
-        })
-        // set color from first event
-        if (!embed.data.color) embed.setColor(meta.color)
+          embed.addFields({ name: `${meta.emoji} ${meta.label} — ${e.id.slice(0, 8)}`, value: `**Inicio:** ${starts}\n**Fin:** ${ends} (${remaining})\n**Multiplicador:** ${multiplier}`, inline: false })
+          if (!embed.data.color) embed.setColor(meta.color)
+        }
+
+        pages.push(embed)
       }
 
-      await interaction.editReply({ embeds: [embed] })
+      const pageCount = pages.length
+      const buildRow = (pageIndex) => {
+        const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js')
+        const row = new ActionRowBuilder()
+        if (pageCount > 1) {
+          const prev = new ButtonBuilder().setCustomId(`events_nav:${interaction.guild.id}:${Math.max(0, pageIndex - 1)}:${interaction.user.id}`).setLabel('◀️ Anterior').setStyle(ButtonStyle.Primary).setDisabled(pageIndex === 0)
+          const next = new ButtonBuilder().setCustomId(`events_nav:${interaction.guild.id}:${Math.min(pageCount - 1, pageIndex + 1)}:${interaction.user.id}`).setLabel('Siguiente ▶️').setStyle(ButtonStyle.Primary).setDisabled(pageIndex === pageCount - 1)
+          row.addComponents(prev, next)
+        }
+        return row
+      }
+
+      // send first page
+      const initial = pages[0]
+      const row = buildRow(0)
+      const components = pageCount > 1 ? [row] : []
+      const sent = await interaction.editReply({ embeds: [initial], components })
+
+      try {
+        const { scheduleDisable } = require('#services/eventPagination')
+        const ttl = parseInt(process.env.EVENT_PAGINATION_TTL_MS, 10) || 15 * 60 * 1000
+        const message = sent && sent.id ? sent : await interaction.fetchReply()
+        scheduleDisable(message, ttl)
+      } catch (err) {
+        // ignore scheduling errors
+      }
       return
     }
   }
