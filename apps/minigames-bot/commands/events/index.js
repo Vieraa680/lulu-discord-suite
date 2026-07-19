@@ -6,7 +6,25 @@ module.exports = {
   data: new SlashCommandBuilder()
     .setName('events')
     .setDescription('Manage limited-time events (admin only)')
-    .addSubcommand(sub => sub.setName('create').setDescription('Create an event').addStringOption(o => o.setName('type').setDescription('Event type, e.g. double_candies, double_butterflies, tournament').setRequired(true)).addIntegerOption(o => o.setName('duration').setDescription('Duration minutes').setRequired(true)).addNumberOption(o => o.setName('multiplier').setDescription('Optional multiplier for event (e.g. 1.5)')))
+    .addSubcommand(sub =>
+      sub
+        .setName('create')
+        .setDescription('Create an event (select from available types)')
+        .addStringOption(o =>
+          o
+            .setName('type')
+            .setDescription('Event type to create')
+            .setRequired(true)
+            .addChoices(
+              { name: 'Double Candies (duel rewards)', value: 'double_candies' },
+              { name: 'Double Butterflies (butterfly rewards)', value: 'double_butterflies' },
+              { name: 'Tournament (scheduled competition)', value: 'tournament' },
+              { name: 'Boss (special boss fight)', value: 'boss' }
+            )
+        )
+        .addIntegerOption(o => o.setName('duration').setDescription('Duration minutes').setRequired(true))
+        .addNumberOption(o => o.setName('multiplier').setDescription('Optional multiplier for event (e.g. 1.5)'))
+    )
     .addSubcommand(sub => sub.setName('stop').setDescription('Stop an event').addStringOption(o => o.setName('id').setDescription('Event id').setRequired(true)))
     .addSubcommand(sub => sub.setName('list').setDescription('List active events in this guild')),
 
@@ -23,7 +41,17 @@ module.exports = {
       await interaction.deferReply({ ephemeral: true })
       const payload = multiplier ? { multiplier } : {}
       const ev = await eventManager.createEvent(interaction.guild.id, type, duration, payload)
-      await interaction.editReply(`Event created: ${ev.id} type=${ev.type} endsAt=${ev.endsAt.toISOString()} multiplier=${payload.multiplier ?? 'n/a'}`)
+      const ends = new Date(ev.endsAt).toLocaleString()
+      const niceType = {
+        double_candies: 'Double Candies',
+        double_butterflies: 'Double Butterflies',
+        tournament: 'Tournament',
+        boss: 'Boss'
+      }[ev.type] ?? ev.type
+
+      const multiplierText = ev.payload?.multiplier ? `${ev.payload.multiplier}×` : 'n/a'
+      const message = `✅ Evento creado: **${niceType}**\n• Duración: **${duration} minutos**\n• Multiplicador: **${multiplierText}**\n• Termina: ${ends}`
+      await interaction.editReply({ content: message })
       return
     }
 
