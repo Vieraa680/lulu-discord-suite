@@ -14,7 +14,6 @@ module.exports = {
   async execute(interaction) {
     const sub = interaction.options.getSubcommand()
 
-    // Authorization check
     const ok = await adminService.isAdmin(interaction)
     if (!ok) {
       await interaction.reply({ content: 'No estás autorizado para usar estos comandos.', ephemeral: true })
@@ -56,7 +55,10 @@ module.exports = {
           const limit = interaction.options.getInteger('limit') || 20
           await interaction.deferReply({ ephemeral: true })
           const txs = await adminService.listTransactions(target.id, interaction.guild.id, limit)
-          if (!txs || txs.length === 0) { await interaction.editReply('No transactions found'); return }
+          if (!txs || txs.length === 0) {
+            await interaction.editReply('No transactions found')
+            return
+          }
           const lines = txs.map(t => `${t.createdAt.toISOString()} • ${t.type} • ${t.amount} • ${t.description}`)
           await interaction.editReply(lines.join('\n'))
           break

@@ -4,7 +4,6 @@ const { expirePolymorphiaState } = require('#services/database/polymorphia')
 const { getGuildConfig } = require('#services/guildConfig')
 
 async function adjustBalance(targetDiscordId, guildId, amount, reason, byUser) {
-  // amount can be positive (credit) or negative (debit)
   const user = await getOrCreateUser(targetDiscordId, guildId, 'unknown')
 
   if (amount === 0) return { success: false, error: 'Amount must be non-zero' }
@@ -49,11 +48,9 @@ async function forceUnpolymorphia(targetDiscordId, guildId) {
 }
 
 async function isAdmin(interaction) {
-  // Check guild config adminRoleId or Administrator permission
   const guildId = interaction.guild.id
   const cfg = await getGuildConfig(guildId)
   const member = interaction.member
-  // If adminRoleId configured, require role
   if (cfg && cfg.adminRoleId) {
     try {
       return member.roles.cache.has(cfg.adminRoleId) || member.permissions.has(require('discord.js').PermissionFlagsBits.Administrator)
