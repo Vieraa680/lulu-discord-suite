@@ -1,6 +1,6 @@
 const { prisma } = require('./prisma')
 
-async function createPolymorphiaState(userId, guildId, previousNickname, currentForm, durationMinutes) {
+async function createPolymorphiaState(userId, guildId, previousNickname, currentForm, durationMinutes, isVoluntary = false) {
     const now = new Date()
     const endsAt = new Date(now.getTime() + durationMinutes * 60 * 1000)
 
@@ -10,6 +10,7 @@ async function createPolymorphiaState(userId, guildId, previousNickname, current
             isActive: true,
             currentForm,
             previousNickname,
+            isVoluntary,
             formDuration: durationMinutes,
             startedAt: now,
             endsAt,
@@ -20,6 +21,7 @@ async function createPolymorphiaState(userId, guildId, previousNickname, current
             isActive: true,
             currentForm,
             previousNickname,
+            isVoluntary,
             formDuration: durationMinutes,
             startedAt: now,
             endsAt,

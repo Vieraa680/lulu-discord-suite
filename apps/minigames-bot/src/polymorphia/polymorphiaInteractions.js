@@ -57,6 +57,7 @@ async function handleShopBuy(interaction) {
     const result = await purchaseItem(discordId, guildId, itemName)
 
     if (result.success) {
+        const item = result.item || await require('#services/database').prisma.item.findUnique({ where: { name: itemName } })
         const embed = new EmbedBuilder()
             .setAuthor({ name: 'Compra en Tienda', iconURL: interaction.user.displayAvatarURL({ dynamic: true, size: 128 }) })
             .setTitle('¡Compra Exitosa!')
@@ -66,6 +67,36 @@ async function handleShopBuy(interaction) {
             .setTimestamp()
 
         await interaction.editReply({ embeds: [embed] })
+
+        try {
+            if (item && item.category === 'form') {
+                const { getOrCreateUser } = require('#services/database')
+                const { createPolymorphiaState } = require('#services/database/polymorphia')
+
+                const member = await interaction.guild.members.fetch(discordId)
+                const botMember = interaction.guild.members.me
+                const canManage = botMember.permissions.has(require('discord.js').PermissionFlagsBits.ManageNicknames)
+
+                const previousNickname = member.nickname || member.displayName || member.user.username
+                const newNickname = item.name
+
+                const durationMap = { common: 15, uncommon: 30, rare: 60, epic: 120, legendary: 240 }
+                const durationMinutes = durationMap[item.rarity] || 30
+
+                if (canManage && botMember.roles.highest.comparePositionTo(member.roles.highest) > 0) {
+                    await member.setNickname(newNickname, 'Voluntary polymorphia purchase')
+                }
+
+                const userDb = await getOrCreateUser(discordId, guildId, previousNickname)
+                await createPolymorphiaState(userDb.id, guildId, previousNickname, newNickname, durationMinutes, true)
+
+                await interaction.followUp({ content: `Se aplicó la forma **${item.name}** por **${durationMinutes} minutos**.`, ephemeral: true })
+            }
+        } catch (err) {
+            const logger = require('#utils/logger').child({ service: 'polymorphiaInteractions' })
+            logger.error({ err }, 'Failed to apply voluntary form after purchase')
+            try { await interaction.followUp({ content: 'La compra se completó pero no se pudo aplicar la forma (permisos). Está en tu inventario.', ephemeral: true }) } catch {}
+        }
     } else {
         await interaction.editReply({
             content: result.error || 'compra fallida'
