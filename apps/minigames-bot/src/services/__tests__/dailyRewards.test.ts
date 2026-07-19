@@ -6,6 +6,7 @@ const mockPrisma = vi.hoisted(() => {
     user: {
       upsert: vi.fn(),
       findUnique: vi.fn(),
+      update: vi.fn(),
     },
     transaction: {
       create: vi.fn(),
