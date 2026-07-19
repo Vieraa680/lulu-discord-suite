@@ -26,6 +26,12 @@ module.exports = {
         .addNumberOption(o => o.setName('multiplier').setDescription('Optional multiplier for event (e.g. 1.5)'))
     )
     .addSubcommand(sub => sub.setName('stop').setDescription('Stop an event').addStringOption(o => o.setName('id').setDescription('Event id').setRequired(true)))
+    .addSubcommand(sub => sub.setName('stop-type').setDescription('Stop all events of a given type in this guild').addStringOption(o => o.setName('type').setDescription('Event type to stop').setRequired(true).addChoices(
+      { name: 'Doble Gominolas', value: 'double_candies' },
+      { name: 'Doble Mariposas', value: 'double_butterflies' },
+      { name: 'Torneo', value: 'tournament' },
+      { name: 'Jefe', value: 'boss' }
+    )))
     .addSubcommand(sub => sub.setName('list').setDescription('List active events in this guild')),
 
   async execute(interaction) {
@@ -40,6 +46,8 @@ module.exports = {
       const multiplier = interaction.options.getNumber('multiplier')
       await interaction.deferReply({ ephemeral: true })
       const payload = multiplier ? { multiplier } : {}
+      // Count existing active events of same type for informational message
+      const existing = (await eventManager.getActiveEvents(interaction.guild.id)).filter(e => e.type === type)
       const ev = await eventManager.createEvent(interaction.guild.id, type, duration, payload)
       const ends = new Date(ev.endsAt).toLocaleString()
       const niceType = {
@@ -51,7 +59,9 @@ module.exports = {
 
       const multiplierText = ev.payload?.multiplier ? `${ev.payload.multiplier}×` : 'N/A'
       const message = `✅ Evento creado: **${niceType}**\n• Duración: **${duration} minutos**\n• Multiplicador: **${multiplierText}**\n• Termina: ${ends}`
-      await interaction.editReply({ content: message })
+      // If there were existing events of the same type, show a friendly note
+      const note = existing.length > 0 ? `\nNota: ya había **${existing.length}** evento(s) activos de este tipo; el nuevo coexistirá con ellos.` : ''
+      await interaction.editReply({ content: message + note })
 
       // Announce in configured guild log channel if present
       try {
@@ -93,6 +103,33 @@ module.exports = {
           } catch (err) {
             const logger = require('#utils/logger').child({ service: 'events' })
             logger.warn({ err }, 'No se pudo anunciar la detención del evento en logChannelId')
+          }
+        }
+      } catch (err) {
+        // ignore
+      }
+      return
+    }
+
+    if (sub === 'stop-type') {
+      const type = interaction.options.getString('type')
+      await interaction.deferReply({ ephemeral: true })
+      const count = await eventManager.stopEventsByType(interaction.guild.id, type)
+      await interaction.editReply(`🛑 Se detuvieron **${count}** evento(s) del tipo **${type}** en este servidor.`)
+
+      // announce in log channel if present
+      try {
+        const { getGuildConfig } = require('#services/guildConfig')
+        const cfg = await getGuildConfig(interaction.guild.id)
+        if (cfg && cfg.logChannelId) {
+          try {
+            const ch = interaction.guild.channels.cache.get(cfg.logChannelId) || await interaction.guild.channels.fetch(cfg.logChannelId)
+            if (ch && typeof ch.send === 'function') {
+              await ch.send({ content: `🛑 Se detuvieron ${count} evento(s) del tipo **${type}**` })
+            }
+          } catch (err) {
+            const logger = require('#utils/logger').child({ service: 'events' })
+            logger.warn({ err }, 'No se pudo anunciar la detención por tipo en logChannelId')
           }
         }
       } catch (err) {

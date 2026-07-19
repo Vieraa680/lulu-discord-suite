@@ -53,4 +53,11 @@ async function stopEvent(eventId) {
   return ev
 }
 
+async function stopEventsByType(guildId, type) {
+  const res = await prisma.event.updateMany({ where: { guildId, type, isActive: true }, data: { isActive: false } })
+  lastFetch = 0
+  await refreshCache()
+  return res.count || res.countUpdated || 0
+}
+
 module.exports = { getActiveEvents, isEventActive, createEvent, stopEvent }
