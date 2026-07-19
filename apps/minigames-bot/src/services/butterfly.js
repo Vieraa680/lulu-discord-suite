@@ -54,11 +54,13 @@ async function handleButterflyCatch(interaction, client) {
     activeButterflies.delete(channelId)
 
     let reward = butterfly.reward
-    // If a double_butterflies event is active for this guild, double the reward
+    // If a double_butterflies event is active for this guild, apply multiplier from event payload
     try {
         const eventManager = require('./EventManager')
-        const isDouble = await eventManager.isEventActive(interaction.guild.id, 'double_butterflies')
-        if (isDouble) reward = reward * 2
+        const events = await eventManager.getActiveEvents(interaction.guild.id)
+        const ev = events.find(e => e.type === 'double_butterflies')
+        const multiplier = ev && ev.payload && ev.payload.multiplier ? Number(ev.payload.multiplier) : 1
+        reward = Math.round(reward * multiplier)
     } catch (err) {
         // ignore if event manager fails
     }

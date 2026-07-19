@@ -33,8 +33,9 @@ async function executeRewardFlow(interaction, duelResult, attackerDb, defenderDb
     // Check for event multipliers (e.g. double_candies) and apply if active
     try {
         const eventManager = require('#services/EventManager')
-        const doubleCandies = await eventManager.isEventActive(guildId, 'double_candies')
-        const multiplier = doubleCandies ? 2 : 1
+        const events = await eventManager.getActiveEvents(guildId)
+        const ev = events.find(e => e.type === 'double_candies')
+        const multiplier = ev && ev.payload && ev.payload.multiplier ? Number(ev.payload.multiplier) : 1
         await distributeCandies(winnerDb, loserDb, guildId, betAmount, multiplier)
     } catch (err) {
         // fallback to normal distribution on error

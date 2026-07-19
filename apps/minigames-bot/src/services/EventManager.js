@@ -34,7 +34,12 @@ async function isEventActive(guildId, type) {
 async function createEvent(guildId, type, durationMinutes = 60, payload = {}) {
   const now = new Date()
   const endsAt = new Date(now.getTime() + durationMinutes * 60 * 1000)
-  const ev = await prisma.event.create({ data: { guildId, type, payload, startsAt: now, endsAt } })
+  // ensure payload is JSON-serializable and include default multiplier for convenience
+  const normalizedPayload = { ...(payload || {}) }
+  if (normalizedPayload.multiplier == null && (type === 'double_candies' || type === 'double_butterflies')) {
+    normalizedPayload.multiplier = 2
+  }
+  const ev = await prisma.event.create({ data: { guildId, type, payload: normalizedPayload, startsAt: now, endsAt } })
   // refresh cache
   lastFetch = 0
   await refreshCache()
