@@ -16,10 +16,10 @@ module.exports = {
             .setDescription('Event type to create')
             .setRequired(true)
             .addChoices(
-              { name: 'Double Candies (duel rewards)', value: 'double_candies' },
-              { name: 'Double Butterflies (butterfly rewards)', value: 'double_butterflies' },
-              { name: 'Tournament (scheduled competition)', value: 'tournament' },
-              { name: 'Boss (special boss fight)', value: 'boss' }
+              { name: 'Doble Gominolas (recompensas de duelo)', value: 'double_candies' },
+              { name: 'Doble Mariposas (recompensas de mariposa)', value: 'double_butterflies' },
+              { name: 'Torneo (competición programada)', value: 'tournament' },
+              { name: 'Jefe (boss especial)', value: 'boss' }
             )
         )
         .addIntegerOption(o => o.setName('duration').setDescription('Duration minutes').setRequired(true))
@@ -43,13 +43,13 @@ module.exports = {
       const ev = await eventManager.createEvent(interaction.guild.id, type, duration, payload)
       const ends = new Date(ev.endsAt).toLocaleString()
       const niceType = {
-        double_candies: 'Double Candies',
-        double_butterflies: 'Double Butterflies',
-        tournament: 'Tournament',
-        boss: 'Boss'
+        double_candies: 'Doble Gominolas',
+        double_butterflies: 'Doble Mariposas',
+        tournament: 'Torneo',
+        boss: 'Jefe'
       }[ev.type] ?? ev.type
 
-      const multiplierText = ev.payload?.multiplier ? `${ev.payload.multiplier}×` : 'n/a'
+      const multiplierText = ev.payload?.multiplier ? `${ev.payload.multiplier}×` : 'N/A'
       const message = `✅ Evento creado: **${niceType}**\n• Duración: **${duration} minutos**\n• Multiplicador: **${multiplierText}**\n• Termina: ${ends}`
       await interaction.editReply({ content: message })
       return
