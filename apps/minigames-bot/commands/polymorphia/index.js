@@ -151,13 +151,19 @@ async function handleShop(interaction) {
             const rarityColor = colorFromRarity(item.rarity)
             const canAfford = user.candies >= item.price
 
+            // Include formDuration for cosmetic forms when present
+            const durationLine = item.category === 'form'
+                ? `**Duración:** ${item.formDuration ? `${item.formDuration} minutos` : 'variable'}`
+                : null
+
             embed.addFields({
                 name: item.name,
                 value: [
                     `**Precio:** ${item.price} 🍬`,
+                    durationLine,
                     `*${item.description || getDefaultDescription(item)}*`,
                     `**Rareza:** \`${item.rarity.toUpperCase()}\``
-                ].join('\n'),
+                ].filter(Boolean).join('\n'),
                 inline: true
             })
 
