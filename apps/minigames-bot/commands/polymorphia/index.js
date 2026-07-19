@@ -1,5 +1,6 @@
 const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js')
 const { handleDuel } = require('#polymorphia/handlers/duelHandler')
+const { handleBuy } = require('#polymorphia/handlers/buyHandler')
 const { iconifyUrlFromColor } = require('#services/icons')
 
 module.exports = {

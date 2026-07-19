@@ -46,8 +46,8 @@ describe('polymorphia buy command', () => {
     const pol = require('../../services/database/polymorphia')
     pol.createPolymorphiaState = vi.fn().mockResolvedValue({})
 
-    const cmd = require('../../../commands/polymorphia/index.js')
-    await cmd.__testHandleBuy(interaction)
+    const handler = require('../handlers/buyHandler')
+    await handler.handleBuy(interaction)
 
     expect(db.purchaseItem).toHaveBeenCalled()
     expect(pol.createPolymorphiaState).toHaveBeenCalled()
