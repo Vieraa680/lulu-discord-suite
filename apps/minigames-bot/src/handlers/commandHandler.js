@@ -95,14 +95,22 @@ async function registerSlashCommands(client, guildId) {
     const rest = new REST({ version: '10' }).setToken(client.token)
 
     try {
-        console.log(`[CommandHandler] Registering ${commandData.length} slash commands to guild ${guildId}...`)
+        if (guildId) {
+            console.log(`[CommandHandler] Registering ${commandData.length} slash commands to guild ${guildId}...`)
+            await rest.put(
+                Routes.applicationGuildCommands(client.user.id, guildId),
+                { body: commandData }
+            )
+            console.log(`[CommandHandler] Successfully registered ${commandData.length} guild slash commands.`)
+            return
+        }
 
+        console.log(`[CommandHandler] Registering ${commandData.length} slash commands globally...`)
         await rest.put(
-            Routes.applicationGuildCommands(client.user.id, guildId),
+            Routes.applicationCommands(client.user.id),
             { body: commandData }
         )
-
-        console.log(`[CommandHandler] Successfully registered ${commandData.length} slash commands.`)
+        console.log(`[CommandHandler] Successfully registered ${commandData.length} global slash commands.`)
     } catch (error) {
         console.error('[CommandHandler] Failed to register slash commands:', error)
     }
