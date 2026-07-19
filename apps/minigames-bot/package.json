@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "dev": "node index.js",
+    "dev": "tsx index.js",
+    "build": "tsc --noEmit",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -16,10 +17,16 @@
     "discord.js": "^14.18.0",
     "dotenv": "^16.4.7"
   },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  },
   "imports": {
-    "#services/*": "./src/services/*.js",
-    "#handlers/*": "./src/handlers/*.js",
-    "#polymorphia/*": "./src/polymorphia/*.js",
-    "#utils/*": "./src/utils/*.js"
+    "#services/database": "./src/services/database/index.js",
+    "#services/*": "./src/services/*",
+    "#handlers/*": "./src/handlers/*",
+    "#polymorphia/*": "./src/polymorphia/*",
+    "#utils/*": "./src/utils/*"
   }
 }
