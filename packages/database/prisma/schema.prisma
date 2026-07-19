@@ -44,6 +44,9 @@ model User {
   polymorphiaProtectedUntil DateTime? // Until when the user is immune to being targeted (4h protection)
   dailyDuelCount          Int        @default(0)  // Duels initiated today (resets daily)
   dailyDuelDate           DateTime?               // Date of last duel initiation (for daily reset detection)
+  // ── Daily rewards tracking ──
+  lastDailyClaim          DateTime?  // When the user last claimed the daily reward
+  dailyStreak             Int        @default(0) // Current daily claim streak
 
   // ── Relations ──
   state        PolymorphiaState?
@@ -73,6 +76,7 @@ model PolymorphiaState {
   isActive         Boolean  @default(false)    // Is the user currently polymorphed?
   currentForm      String   @default("")       // e.g. "yuumi", "teemo", "poro"
   previousNickname String   @default("")       // Original nickname to restore on expiration
+  isVoluntary      Boolean  @default(false)     // True when form was applied voluntarily via shop
   formDuration     Int      @default(0)        // Duration in minutes
   startedAt        DateTime?                   // When the current form started
   endsAt           DateTime?                   // When the current form expires
