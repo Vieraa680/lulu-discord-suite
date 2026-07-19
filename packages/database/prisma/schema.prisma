@@ -53,6 +53,8 @@ model User {
   items        UserItem[]
   transactions Transaction[]
   achievements UserAchievement[]
+  accounts     Account[]
+  sessions     Session[]
 
   // ── Timestamps ──
   createdAt DateTime @default(now())
