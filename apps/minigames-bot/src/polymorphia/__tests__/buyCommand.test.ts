@@ -1,19 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-// Mock purchaseItem and database helpers
-const mockDb = vi.hoisted(() => {
-  const m: any = {
-    purchaseItem: vi.fn(),
-    prisma: {
-      item: { findUnique: vi.fn() }
-    },
-    getOrCreateUser: vi.fn()
-  }
-  // Install as module mock target
-  vi.doMock('#services/database', () => m)
-  vi.doMock('#services/database/polymorphia', () => ({ createPolymorphiaState: vi.fn() }))
-  return m
-})
+// We'll override functions on the real module at runtime
 
 // Minimal interaction mock
 function makeInteraction({ itemName = 'Forma Yuumi', nickname = 'Old' } = {}) {
@@ -53,10 +40,11 @@ describe('polymorphia buy command', () => {
   it('applies form after successful purchase', async () => {
     const { interaction, member } = makeInteraction()
     const db = require('#services/database')
-    db.purchaseItem.mockResolvedValue({ success: true, item: { name: 'Forma Yuumi', category: 'form', rarity: 'common' } })
-    db.getOrCreateUser.mockResolvedValue({ id: 'u1' })
+    db.purchaseItem = vi.fn().mockResolvedValue({ success: true, item: { name: 'Forma Yuumi', category: 'form', rarity: 'common' } })
+    db.getOrCreateUser = vi.fn().mockResolvedValue({ id: 'u1' })
+    // mock polymorphia helper
     const pol = require('#services/database/polymorphia')
-    pol.createPolymorphiaState.mockResolvedValue({})
+    pol.createPolymorphiaState = vi.fn().mockResolvedValue({})
 
     const cmd = require('../../../commands/polymorphia/index.js')
     await cmd.__testHandleBuy(interaction)
