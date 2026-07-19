@@ -83,6 +83,25 @@ model GuildConfig {
 }
 
 // ──────────────────────────────────────────────
+// EVENT
+// ──────────────────────────────────────────────
+model Event {
+  id        String   @id @default(uuid())
+  guildId   String
+  type      String   // e.g. "double_candies", "double_butterflies", "tournament"
+  payload   Json?
+  startsAt  DateTime
+  endsAt    DateTime
+  isActive  Boolean  @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([guildId])
+  @@index([type])
+}
+
+// ──────────────────────────────────────────────
 // POLYMORPHIA STATE
 // ──────────────────────────────────────────────
 // Tracks the active polymorphia game state per user.

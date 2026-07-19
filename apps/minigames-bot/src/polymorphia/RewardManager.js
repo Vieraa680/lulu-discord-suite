@@ -30,7 +30,16 @@ async function executeRewardFlow(interaction, duelResult, attackerDb, defenderDb
     const loserDb = isAttackerWinner ? defenderDb : attackerDb
 
     // Distribute candies — winner takes both bets, loser loses everything
-    await distributeCandies(winnerDb, loserDb, guildId, betAmount)
+    // Check for event multipliers (e.g. double_candies) and apply if active
+    try {
+        const eventManager = require('#services/EventManager')
+        const doubleCandies = await eventManager.isEventActive(guildId, 'double_candies')
+        const multiplier = doubleCandies ? 2 : 1
+        await distributeCandies(winnerDb, loserDb, guildId, betAmount, multiplier)
+    } catch (err) {
+        // fallback to normal distribution on error
+        await distributeCandies(winnerDb, loserDb, guildId, betAmount)
+    }
 
     // Update duel stats (delegated to database.js)
     await updateDuelStats(winnerDb.id, loserDb.id, duelResult)
@@ -90,14 +99,14 @@ async function executeRewardFlow(interaction, duelResult, attackerDb, defenderDb
     }
 }
 
-async function distributeCandies(winnerDb, loserDb, guildId, betAmount) {
+async function distributeCandies(winnerDb, loserDb, guildId, betAmount, multiplier = 1) {
     // Get fresh records to have accurate balances
     const [freshWinner, freshLoser] = await Promise.all([
         prisma.user.findUnique({ where: { discordId_guildId: { discordId: winnerDb.discordId, guildId } } }),
         prisma.user.findUnique({ where: { discordId_guildId: { discordId: loserDb.discordId, guildId } } })
     ])
 
-    const totalPot = betAmount * 2
+    const totalPot = betAmount * 2 * multiplier
 
     // Single transaction: deduct loser's bet, add both bets to winner
     await prisma.$transaction([
@@ -111,17 +120,17 @@ async function distributeCandies(winnerDb, loserDb, guildId, betAmount) {
             where: { id: freshWinner.id },
             data: {
                 candies: { increment: totalPot },
-                totalEarned: { increment: betAmount }
+                totalEarned: { increment: Math.round(betAmount * multiplier) }
             }
         }),
         // Transaction log for winner
         prisma.transaction.create({
-            data: {
+                data: {
                 userId: freshWinner.id,
                 type: 'earn',
                 amount: totalPot,
                 balanceAfter: freshWinner.candies + totalPot,
-                description: `Ganó duelo de Polymorphia vs ${loserDb.username} (+${betAmount} neto)`
+                description: `Ganó duelo de Polymorphia vs ${loserDb.username} (+${Math.round(betAmount * multiplier)} neto)`
             }
         }),
         // Transaction log for loser
