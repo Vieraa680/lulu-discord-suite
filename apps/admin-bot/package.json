@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "dev": "node index.js"
+    "dev": "node index.js",
+    "test": "vitest"
   },
   "dependencies": {
     "@lulu-discord/database": "^1.0.0",
@@ -11,6 +12,9 @@
     "discord.js": "^14.18.0",
     "dotenv": "^16.4.7",
     "@lulu-discord/bot-utils": "workspace:*"
+  },
+  "devDependencies": {
+    "vitest": "^4.1.10"
   },
   "imports": {
     "#handlers/*": "./src/handlers/*.js"
