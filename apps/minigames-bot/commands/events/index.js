@@ -1,4 +1,4 @@
-const { SlashCommandBuilder } = require('discord.js')
+const { SlashCommandBuilder, EmbedBuilder } = require('discord.js')
 const eventManager = require('#services/EventManager')
 const adminService = require('#services/admin')
 
@@ -144,10 +144,10 @@ module.exports = {
       if (!events || events.length === 0) { await interaction.editReply('No hay eventos activos'); return }
 
       const niceTypeMap = {
-        double_candies: 'Doble Gominolas',
-        double_butterflies: 'Doble Mariposas',
-        tournament: 'Torneo',
-        boss: 'Jefe'
+        double_candies: { label: 'Doble Gominolas', emoji: '🍬', color: 0xE67E22 },
+        double_butterflies: { label: 'Doble Mariposas', emoji: '🦋', color: 0x9B59B6 },
+        tournament: { label: 'Torneo', emoji: '🏆', color: 0x2ECC71 },
+        boss: { label: 'Jefe', emoji: '👹', color: 0xE74C3C }
       }
 
       function formatRemaining(endsAt) {
@@ -161,16 +161,28 @@ module.exports = {
         return `${hrs}h ${rem}m restante`
       }
 
-      const lines = events.map(e => {
-        const type = niceTypeMap[e.type] ?? e.type
-        const starts = new Date(e.startsAt).toLocaleString()
-        const ends = new Date(e.endsAt).toLocaleString()
-        const multiplier = e.payload?.multiplier ? `${e.payload.multiplier}×` : 'n/a'
-        const remaining = formatRemaining(e.endsAt)
-        return `• **${type}** (id: ${e.id})\n  • ${starts} → ${ends} (${remaining})\n  • Multiplicador: ${multiplier}`
-      })
+      const embed = new EmbedBuilder()
+        .setTitle('Eventos activos')
+        .setDescription(`Hay **${events.length}** evento(s) activo(s) en este servidor`)
+        .setTimestamp()
 
-      await interaction.editReply(lines.join('\n\n'))
+      for (const e of events) {
+        const meta = niceTypeMap[e.type] || { label: e.type, emoji: '🎫', color: 0x95A5A6 }
+        const starts = `<t:${Math.floor(new Date(e.startsAt).getTime() / 1000)}:f>`
+        const ends = `<t:${Math.floor(new Date(e.endsAt).getTime() / 1000)}:f>`
+        const remaining = formatRemaining(e.endsAt)
+        const multiplier = e.payload?.multiplier ? `${e.payload.multiplier}×` : 'N/A'
+
+        embed.addFields({
+          name: `${meta.emoji} ${meta.label} — ${e.id.slice(0, 8)}`,
+          value: `**Inicio:** ${starts}\n**Fin:** ${ends} (${remaining})\n**Multiplicador:** ${multiplier}`,
+          inline: false
+        })
+        // set color from first event
+        if (!embed.data.color) embed.setColor(meta.color)
+      }
+
+      await interaction.editReply({ embeds: [embed] })
       return
     }
   }
