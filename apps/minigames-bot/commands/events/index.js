@@ -6,7 +6,7 @@ module.exports = {
   data: new SlashCommandBuilder()
     .setName('events')
     .setDescription('Manage limited-time events (admin only)')
-    .addSubcommand(sub => sub.setName('create').setDescription('Create an event').addStringOption(o => o.setName('type').setRequired(true)).addIntegerOption(o => o.setName('duration').setDescription('Duration minutes').setRequired(true)).addNumberOption(o => o.setName('multiplier').setDescription('Optional multiplier for event (e.g. 1.5)')))
+    .addSubcommand(sub => sub.setName('create').setDescription('Create an event').addStringOption(o => o.setName('type').setDescription('Event type, e.g. double_candies, double_butterflies, tournament').setRequired(true)).addIntegerOption(o => o.setName('duration').setDescription('Duration minutes').setRequired(true)).addNumberOption(o => o.setName('multiplier').setDescription('Optional multiplier for event (e.g. 1.5)')))
     .addSubcommand(sub => sub.setName('stop').setDescription('Stop an event').addStringOption(o => o.setName('id').setDescription('Event id').setRequired(true)))
     .addSubcommand(sub => sub.setName('list').setDescription('List active events in this guild')),
 
