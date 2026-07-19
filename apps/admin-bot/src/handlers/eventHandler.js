@@ -1,11 +1,13 @@
 const fs = require('fs')
 const path = require('path')
+const { logger } = require('@lulu-discord/bot-utils')
+const base = logger.child({ service: 'eventHandler' })
 
 function loadEvents(client) {
     const eventsPath = path.join(__dirname, '..', '..', 'events')
 
     if (!fs.existsSync(eventsPath)) {
-        console.warn(`[AdminEventHandler] Events directory not found at ${eventsPath}.`)
+        base.warn({ eventsPath }, 'Events directory not found. Skipping event loading.')
         return
     }
 
@@ -25,7 +27,7 @@ function loadEvents(client) {
                 const event = require(filePath)
 
                 if (!event.name || !event.execute) {
-                    console.warn(`[AdminEventHandler] Skipping ${filePath}: invalid event export.`)
+                    base.warn({ filePath }, 'Skipping invalid event export.')
                     continue
                 }
 
@@ -37,14 +39,14 @@ function loadEvents(client) {
                 }
 
                 loadedCount++
-                console.log(`[AdminEventHandler] Registered event: ${event.name} (${category})`)
+                base.info({ event: event.name, category }, 'Registered event')
             } catch (error) {
-                console.error(`[AdminEventHandler] Failed to load event ${filePath}:`, error.message)
+                base.error({ err: error, filePath }, 'Failed to load event')
             }
         }
     }
 
-    console.log(`[AdminEventHandler] Total events registered: ${loadedCount}`)
+    base.info({ total: loadedCount }, 'Total events registered')
 }
 
 module.exports = { loadEvents }
