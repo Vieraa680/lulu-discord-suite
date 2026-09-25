@@ -1,5 +1,4 @@
-import { prisma } from '@lulu-discord/database'
-
+import { prisma, type GuildConfig, type ActivityRoleRule } from '@lulu-discord/database'
 import { cookies } from 'next/headers'
 
 export const DEFAULT_GUILD_ID = process.env.GUILD_ID?.trim() || ''
@@ -12,15 +11,39 @@ export interface GuildOption {
   isTest?: boolean
 }
 
-let botGuildsCache: { timestamp: number; data: GuildOption[] } | null = null
+const memoryCache = new Map<string, { exp: number; data: unknown }>()
+
+function getCached<T>(key: string): T | undefined {
+  const item = memoryCache.get(key)
+  if (!item) return undefined
+  if (Date.now() > item.exp) {
+    memoryCache.delete(key)
+    return undefined
+  }
+  return item.data as T
+}
+
+function setCached<T>(key: string, data: T, ttlMs = 60_000): T {
+  memoryCache.set(key, { exp: Date.now() + ttlMs, data })
+  return data
+}
+
+export function invalidateCache(prefix?: string) {
+  if (!prefix) {
+    memoryCache.clear()
+    return
+  }
+  for (const key of memoryCache.keys()) {
+    if (key.startsWith(prefix)) memoryCache.delete(key)
+  }
+}
 
 export async function fetchBotGuildsFromDiscord(): Promise<GuildOption[]> {
   const token = process.env.DISCORD_TOKEN?.trim()
   if (!token) return []
 
-  if (botGuildsCache && Date.now() - botGuildsCache.timestamp < 60_000) {
-    return botGuildsCache.data
-  }
+  const cached = getCached<GuildOption[]>('discord:guilds')
+  if (cached) return cached
 
   try {
     const res = await fetch('https://discord.com/api/v10/users/@me/guilds', {
@@ -28,41 +51,32 @@ export async function fetchBotGuildsFromDiscord(): Promise<GuildOption[]> {
       next: { revalidate: 60 },
     })
 
-    if (res.ok) {
-      const guilds = (await res.json()) as Array<{
-        id: string
-        name: string
-        icon: string | null
-      }>
+    if (!res.ok) return []
 
-      const formatted: GuildOption[] = guilds.map(g => {
-        const lower = g.name.toLowerCase()
-        const isTest =
-          lower.includes('test') ||
-          lower.includes('prueba') ||
-          lower.includes('dev') ||
-          lower.includes('staging') ||
-          lower.includes('beta')
+    const guilds = (await res.json()) as Array<{
+      id: string
+      name: string
+      icon: string | null
+    }>
 
-        return {
-          id: g.id,
-          name: g.name,
-          iconUrl: g.icon ? `https://cdn.discordapp.com/icons/${g.id}/${g.icon}.png?size=64` : null,
-          isTest,
-        }
-      })
+    const formatted: GuildOption[] = guilds.map(g => ({
+      id: g.id,
+      name: g.name,
+      iconUrl: g.icon ? `https://cdn.discordapp.com/icons/${g.id}/${g.icon}.png?size=64` : null,
+      isTest: /test|prueba|dev|staging|beta/i.test(g.name),
+    }))
 
-      botGuildsCache = { timestamp: Date.now(), data: formatted }
-      return formatted
-    }
+    return setCached('discord:guilds', formatted, 60_000)
   } catch (err) {
     console.error('[dashboard-data] fetchBotGuildsFromDiscord error:', err)
+    return []
   }
-
-  return []
 }
 
 export async function getAvailableGuilds(): Promise<GuildOption[]> {
+  const cached = getCached<GuildOption[]>('guilds:available')
+  if (cached) return cached
+
   const guildMap = new Map<string, GuildOption>()
 
   const discordGuilds = await fetchBotGuildsFromDiscord()
@@ -117,7 +131,7 @@ export async function getAvailableGuilds(): Promise<GuildOption[]> {
     })
   }
 
-  return Array.from(guildMap.values())
+  return setCached('guilds:available', Array.from(guildMap.values()), 60_000)
 }
 
 export async function getActiveGuildId(requestedGuildId?: string | null): Promise<string> {
@@ -227,48 +241,53 @@ export async function getDashboardStats(guildId: string): Promise<DashboardStats
     }
   }
 
+  const key = `stats:${guildId}`
+  const cached = getCached<DashboardStats>(key)
+  if (cached) return cached
+
   try {
     const [
-      totalUsers,
-      candiesAgg,
-      earnedAgg,
-      spentAgg,
-      winsAgg,
-      lossesAgg,
-      savedAgg,
+      userStats,
       activePolymorphiaCount,
       totalTransactions,
       butterfliesCaught,
     ] = await Promise.all([
-      prisma.user.count({ where: { guildId } }),
-      prisma.user.aggregate({ where: { guildId }, _sum: { candies: true } }),
-      prisma.user.aggregate({ where: { guildId }, _sum: { totalEarned: true } }),
-      prisma.user.aggregate({ where: { guildId }, _sum: { totalSpent: true } }),
-      prisma.user.aggregate({ where: { guildId }, _sum: { polymorphiaWins: true } }),
-      prisma.user.aggregate({ where: { guildId }, _sum: { polymorphiaLosses: true } }),
-      prisma.user.aggregate({ where: { guildId }, _sum: { polymorphiaSaved: true } }),
+      prisma.user.aggregate({
+        where: { guildId },
+        _count: { _all: true },
+        _sum: {
+          candies: true,
+          totalEarned: true,
+          totalSpent: true,
+          polymorphiaWins: true,
+          polymorphiaLosses: true,
+          polymorphiaSaved: true,
+        },
+      }),
       prisma.polymorphiaState.count({ where: { guildId, isActive: true } }),
       prisma.transaction.count({ where: { user: { guildId } } }),
-      prisma.transaction.count({ where: { user: { guildId }, description: { contains: 'mariposa', mode: 'insensitive' } } }),
+      prisma.transaction.count({
+        where: { user: { guildId }, description: { contains: 'mariposa', mode: 'insensitive' } },
+      }),
     ])
 
-    const totalWins = winsAgg._sum.polymorphiaWins ?? 0
-    const totalLosses = lossesAgg._sum.polymorphiaLosses ?? 0
+    const totalWins = userStats._sum.polymorphiaWins ?? 0
+    const totalLosses = userStats._sum.polymorphiaLosses ?? 0
 
-    return {
-      totalUsers,
-      totalCandies: candiesAgg._sum.candies ?? 0,
-      totalEarned: earnedAgg._sum.totalEarned ?? 0,
-      totalSpent: spentAgg._sum.totalSpent ?? 0,
+    return setCached(key, {
+      totalUsers: userStats._count._all ?? 0,
+      totalCandies: userStats._sum.candies ?? 0,
+      totalEarned: userStats._sum.totalEarned ?? 0,
+      totalSpent: userStats._sum.totalSpent ?? 0,
       totalDuels: totalWins + totalLosses,
       totalWins,
       totalLosses,
-      totalSaved: savedAgg._sum.polymorphiaSaved ?? 0,
+      totalSaved: userStats._sum.polymorphiaSaved ?? 0,
       activePolymorphiaCount,
       totalTransactions,
       butterfliesCaught,
       isDbConnected: true,
-    }
+    }, 30_000)
   } catch (error) {
     console.error('[dashboard-data] getDashboardStats error:', error)
     return {
@@ -291,6 +310,19 @@ export async function getDashboardStats(guildId: string): Promise<DashboardStats
 export async function getActivePolymorphia(guildId: string) {
   if (!guildId) return []
 
+  const key = `polymorphia:${guildId}`
+  const cached = getCached<Array<{
+    id: string
+    discordId: string
+    username: string
+    avatarUrl: string | null
+    currentForm: string
+    isVoluntary: boolean
+    endsAt: string | null
+    minutesRemaining: number
+  }>>(key)
+  if (cached) return cached
+
   try {
     const states = await prisma.polymorphiaState.findMany({
       where: { guildId, isActive: true },
@@ -300,7 +332,7 @@ export async function getActivePolymorphia(guildId: string) {
       orderBy: { endsAt: 'asc' },
     })
 
-    return states.map(s => ({
+    const formatted = states.map(s => ({
       id: s.id,
       discordId: s.user.discordId,
       username: s.user.globalName || s.user.username || s.user.discordId,
@@ -310,6 +342,8 @@ export async function getActivePolymorphia(guildId: string) {
       endsAt: s.endsAt ? s.endsAt.toISOString() : null,
       minutesRemaining: s.endsAt ? Math.max(0, Math.round((s.endsAt.getTime() - Date.now()) / 60000)) : 0,
     }))
+
+    return setCached(key, formatted, 15_000)
   } catch {
     return []
   }
@@ -458,6 +492,21 @@ export async function getRecentTransactions(guildId: string, limit = 40, filterT
 }
 
 export async function getItemsCatalog() {
+  const cached = getCached<Array<{
+    id: string
+    name: string
+    description: string
+    emoji: string
+    price: number
+    category: string
+    rarity: string
+    isCollectible: boolean
+    isActive: boolean
+    formDuration: number | null
+    ownersCount: number
+  }>>('items:catalog')
+  if (cached) return cached
+
   try {
     const items = await prisma.item.findMany({
       orderBy: [{ category: 'asc' }, { price: 'asc' }],
@@ -466,7 +515,7 @@ export async function getItemsCatalog() {
       },
     })
 
-    return items.map(item => ({
+    const formatted = items.map(item => ({
       id: item.id,
       name: item.name,
       description: item.description,
@@ -479,28 +528,34 @@ export async function getItemsCatalog() {
       formDuration: item.formDuration,
       ownersCount: item._count.owners,
     }))
+
+    return setCached('items:catalog', formatted, 60_000)
   } catch {
     return []
   }
 }
 
-export async function getGuildConfig(guildId: string) {
-  if (!guildId) {
-    return {
-      id: 'cfg-empty',
-      guildId: '',
-      veteranRoleName: 'Invocador Veterano',
-      butterflyExcludedChannels: [],
-      butterflyMultiplier: 1.0,
-      candyMultiplier: 1.0,
-      polymorphiaMinBet: 1,
-      polymorphiaMaxBet: 1000,
-      adminRoleId: null,
-      logChannelId: null,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    }
+export async function getGuildConfig(guildId: string): Promise<GuildConfig> {
+  const fallback: GuildConfig = {
+    id: 'cfg-empty',
+    guildId,
+    veteranRoleName: 'Invocador Veterano',
+    butterflyExcludedChannels: [],
+    butterflyMultiplier: 1.0,
+    candyMultiplier: 1.0,
+    polymorphiaMinBet: 1,
+    polymorphiaMaxBet: 1000,
+    adminRoleId: null,
+    logChannelId: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
   }
+
+  if (!guildId) return fallback
+
+  const key = `config:${guildId}`
+  const cached = getCached<GuildConfig>(key)
+  if (cached) return cached
 
   try {
     let config = await prisma.guildConfig.findUnique({
@@ -521,22 +576,9 @@ export async function getGuildConfig(guildId: string) {
       })
     }
 
-    return config
+    return setCached(key, config, 60_000)
   } catch {
-    return {
-      id: 'cfg-fallback',
-      guildId,
-      veteranRoleName: 'Invocador Veterano',
-      butterflyExcludedChannels: [],
-      butterflyMultiplier: 1.0,
-      candyMultiplier: 1.0,
-      polymorphiaMinBet: 1,
-      polymorphiaMaxBet: 1000,
-      adminRoleId: null,
-      logChannelId: null,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    }
+    return fallback
   }
 }
 
@@ -558,81 +600,97 @@ export async function fetchGuildRoles(guildId: string): Promise<DiscordGuildRole
   const token = process.env.DISCORD_TOKEN?.trim()
   if (!token || !guildId) return []
 
+  const key = `roles:${guildId}`
+  const cached = getCached<DiscordGuildRole[]>(key)
+  if (cached) return cached
+
   try {
     const res = await fetch(`https://discord.com/api/v10/guilds/${guildId}/roles`, {
       headers: { Authorization: `Bot ${token}` },
-      next: { revalidate: 30 },
+      next: { revalidate: 60 },
     })
 
-    if (res.ok) {
-      const roles = (await res.json()) as Array<{
-        id: string
-        name: string
-        color: number
-        position: number
-        managed?: boolean
-      }>
+    if (!res.ok) return []
 
-      return roles
-        .filter(r => r.name !== '@everyone' && !r.managed)
-        .sort((a, b) => b.position - a.position)
-        .map(r => ({
-          id: r.id,
-          name: r.name,
-          color: r.color,
-          hexColor: r.color ? `#${r.color.toString(16).padStart(6, '0')}` : '#71717a',
-          position: r.position,
-        }))
-    }
+    const roles = (await res.json()) as Array<{
+      id: string
+      name: string
+      color: number
+      position: number
+      managed?: boolean
+    }>
+
+    const formatted = roles
+      .filter(r => r.name !== '@everyone' && !r.managed)
+      .sort((a, b) => b.position - a.position)
+      .map(r => ({
+        id: r.id,
+        name: r.name,
+        color: r.color,
+        hexColor: r.color ? `#${r.color.toString(16).padStart(6, '0')}` : '#71717a',
+        position: r.position,
+      }))
+
+    return setCached(key, formatted, 60_000)
   } catch (err) {
     console.error('[dashboard-data] fetchGuildRoles error:', err)
+    return []
   }
-
-  return []
 }
 
 export async function fetchGuildChannels(guildId: string): Promise<DiscordGuildChannel[]> {
   const token = process.env.DISCORD_TOKEN?.trim()
   if (!token || !guildId) return []
 
+  const key = `channels:${guildId}`
+  const cached = getCached<DiscordGuildChannel[]>(key)
+  if (cached) return cached
+
   try {
     const res = await fetch(`https://discord.com/api/v10/guilds/${guildId}/channels`, {
       headers: { Authorization: `Bot ${token}` },
-      next: { revalidate: 30 },
+      next: { revalidate: 60 },
     })
 
-    if (res.ok) {
-      const channels = (await res.json()) as Array<{
-        id: string
-        name: string
-        type: number
-        position?: number
-      }>
+    if (!res.ok) return []
 
-      return channels
-        .filter(c => c.type === 0 || c.type === 5)
-        .sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
-        .map(c => ({
-          id: c.id,
-          name: c.name,
-          type: c.type,
-        }))
-    }
+    const channels = (await res.json()) as Array<{
+      id: string
+      name: string
+      type: number
+      position?: number
+    }>
+
+    const formatted = channels
+      .filter(c => c.type === 0 || c.type === 5)
+      .sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
+      .map(c => ({
+        id: c.id,
+        name: c.name,
+        type: c.type,
+      }))
+
+    return setCached(key, formatted, 60_000)
   } catch (err) {
     console.error('[dashboard-data] fetchGuildChannels error:', err)
+    return []
   }
-
-  return []
 }
 
-export async function getActivityRoleRules(guildId: string) {
+export async function getActivityRoleRules(guildId: string): Promise<ActivityRoleRule[]> {
   if (!guildId) return []
 
+  const key = `rules:${guildId}`
+  const cached = getCached<ActivityRoleRule[]>(key)
+  if (cached) return cached
+
   try {
-    return await prisma.activityRoleRule.findMany({
+    const rules = await prisma.activityRoleRule.findMany({
       where: { guildId },
       orderBy: { createdAt: 'desc' },
     })
+
+    return setCached(key, rules, 30_000)
   } catch (err) {
     console.error('[dashboard-data] getActivityRoleRules error:', err)
     return []

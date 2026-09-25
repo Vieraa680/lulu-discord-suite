@@ -3,6 +3,7 @@
 import { prisma } from '@lulu-discord/database'
 import { revalidatePath } from 'next/cache'
 import { cookies } from 'next/headers'
+import { invalidateCache } from '@/lib/dashboard-data'
 
 export interface ActionResponse {
   success: boolean
@@ -15,6 +16,8 @@ export async function selectGuild(formData: FormData): Promise<ActionResponse> {
 
   const cookieStore = await cookies()
   cookieStore.set('lulu_selected_guild', guildId, { path: '/', maxAge: 60 * 60 * 24 * 365 })
+  invalidateCache('guilds')
+  invalidateCache(`stats:${guildId}`)
   revalidatePath('/dashboard', 'layout')
   return { success: true, message: 'Servidor cambiado con éxito.' }
 }
@@ -34,6 +37,8 @@ export async function registerGuild(formData: FormData): Promise<ActionResponse>
     })
     const cookieStore = await cookies()
     cookieStore.set('lulu_selected_guild', guildId, { path: '/', maxAge: 60 * 60 * 24 * 365 })
+    invalidateCache('guilds')
+    invalidateCache(`config:${guildId}`)
     revalidatePath('/dashboard', 'layout')
     return { success: true, message: `Servidor ${guildId} registrado con éxito.` }
   } catch (error) {
@@ -86,6 +91,7 @@ export async function adjustUserCandies(formData: FormData): Promise<ActionRespo
       })
     })
 
+    invalidateCache(`stats:${guildId}`)
     revalidatePath('/dashboard')
     revalidatePath(`/dashboard/users/${discordId}`)
     revalidatePath('/dashboard/users')
@@ -120,6 +126,8 @@ export async function dispelPolymorphia(formData: FormData): Promise<ActionRespo
       },
     })
 
+    invalidateCache(`stats:${guildId}`)
+    invalidateCache(`polymorphia:${guildId}`)
     revalidatePath('/dashboard')
     revalidatePath(`/dashboard/users/${discordId}`)
     revalidatePath('/dashboard/users')
@@ -180,6 +188,8 @@ export async function applyPolymorphia(formData: FormData): Promise<ActionRespon
       })
     }
 
+    invalidateCache(`stats:${guildId}`)
+    invalidateCache(`polymorphia:${guildId}`)
     revalidatePath('/dashboard')
     revalidatePath(`/dashboard/users/${discordId}`)
     return { success: true, message: `Usuario transformado en "${form}" por ${durationMinutes} minutos.` }
@@ -216,6 +226,8 @@ export async function grantItem(formData: FormData): Promise<ActionResponse> {
       },
     })
 
+    invalidateCache(`stats:${guildId}`)
+    invalidateCache('items:catalog')
     revalidatePath(`/dashboard/users/${discordId}`)
     revalidatePath('/dashboard/users')
     return { success: true, message: `Se añadieron ${quantity}x del ítem al inventario.` }
@@ -267,6 +279,8 @@ export async function updateGuildConfig(formData: FormData): Promise<ActionRespo
       },
     })
 
+    invalidateCache(`config:${guildId}`)
+    invalidateCache('guilds')
     revalidatePath('/dashboard/settings')
     return { success: true, message: 'Configuración guardada exitosamente.' }
   } catch (error) {
@@ -285,6 +299,7 @@ export async function toggleItemStatus(formData: FormData): Promise<ActionRespon
       data: { isActive: !isActive },
     })
 
+    invalidateCache('items:catalog')
     revalidatePath('/dashboard/items')
     return { success: true, message: `Estado del ítem actualizado.` }
   } catch (error) {
@@ -307,6 +322,7 @@ export async function updateItemPrice(formData: FormData): Promise<ActionRespons
       data: { price },
     })
 
+    invalidateCache('items:catalog')
     revalidatePath('/dashboard/items')
     return { success: true, message: `Precio actualizado a ${price} caramelos.` }
   } catch (error) {
@@ -378,6 +394,7 @@ export async function createDiscordRole(formData: FormData): Promise<CreateRoleR
       position: created.position ?? 0,
     }
 
+    invalidateCache(`roles:${guildId}`)
     revalidatePath('/dashboard/activity-roles')
     return {
       success: true,
@@ -437,6 +454,7 @@ export async function createActivityRoleRule(formData: FormData): Promise<Action
       },
     })
 
+    invalidateCache(`rules:${guildId}`)
     revalidatePath('/dashboard/activity-roles')
     return { success: true, message: 'Regla de rol por actividad creada con éxito.' }
   } catch (error) {
@@ -452,11 +470,12 @@ export async function toggleActivityRoleRule(formData: FormData): Promise<Action
   if (!id) return { success: false, message: 'ID de regla no especificado.' }
 
   try {
-    await prisma.activityRoleRule.update({
+    const updated = await prisma.activityRoleRule.update({
       where: { id },
       data: { isEnabled },
     })
 
+    invalidateCache(`rules:${updated.guildId}`)
     revalidatePath('/dashboard/activity-roles')
     return {
       success: true,
@@ -474,10 +493,11 @@ export async function deleteActivityRoleRule(formData: FormData): Promise<Action
   if (!id) return { success: false, message: 'ID de regla no especificado.' }
 
   try {
-    await prisma.activityRoleRule.delete({
+    const deleted = await prisma.activityRoleRule.delete({
       where: { id },
     })
 
+    invalidateCache(`rules:${deleted.guildId}`)
     revalidatePath('/dashboard/activity-roles')
     return { success: true, message: 'Regla eliminada con éxito.' }
   } catch (error) {
