@@ -1,5 +1,6 @@
 const { prisma } = require('#services/database')
 const { PermissionFlagsBits } = require('discord.js')
+const logger = require('#utils/logger')
 
 const SWEEP_INTERVAL_MS = parseInt(process.env.POLYMORPHIA_SWEEP_INTERVAL_MS, 10) || 60_000
 
@@ -16,14 +17,12 @@ async function sweepExpiredPolymorphia(client) {
             include: { user: true }
         })
     } catch (error) {
-        const logger = require('#utils/logger')
         logger.error({ err: error }, '[Sweeper] Database query failed')
         return 0
     }
 
     if (expiredStates.length === 0) return 0
 
-    const logger = require('#utils/logger')
     logger.info({ count: expiredStates.length }, 'Found expired polymorphia state(s). Reverting...')
 
     let revertedCount = 0
@@ -82,7 +81,6 @@ async function markInactive(stateId) {
             }
         })
     } catch (error) {
-        const logger = require('#utils/logger')
         logger.error({ err: error, stateId }, 'Failed to mark state as inactive')
     }
 }
