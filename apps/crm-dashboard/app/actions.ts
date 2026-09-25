@@ -397,8 +397,23 @@ export async function createActivityRoleRule(formData: FormData): Promise<Action
   const roleName = (formData.get('roleName') as string)?.trim() || null
   const roleColor = (formData.get('roleColor') as string)?.trim() || null
   const channelName = (formData.get('channelName') as string)?.trim() || null
+  const channelIdsRaw = (formData.get('channelIds') as string)?.trim()
   const messagesReq = parseInt(formData.get('messagesReq') as string, 10) || 1
   const cooldownSec = parseInt(formData.get('cooldownSec') as string, 10) || 60
+
+  let channelIds: string[] = []
+  if (channelIdsRaw) {
+    try {
+      const parsed = JSON.parse(channelIdsRaw)
+      if (Array.isArray(parsed)) {
+        channelIds = parsed.filter((id): id is string => typeof id === 'string' && id.trim().length > 0)
+      }
+    } catch {
+      channelIds = []
+    }
+  }
+
+  const channelId = channelIds.length === 1 ? channelIds[0] : (formData.get('channelId') as string)?.trim() || null
 
   if (!guildId) return { success: false, message: 'ID de servidor requerido.' }
   if (!name) return { success: false, message: 'El nombre de la regla es obligatorio.' }
