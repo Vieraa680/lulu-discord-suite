@@ -23,11 +23,11 @@ const daily = require('../dailyRewards')
 beforeEach(() => {
   // Clear mocks
   for (const svc of Object.values(mockPrisma)) {
-    if (typeof svc === 'function') {
-      svc.mockClear()
+    if (typeof svc === 'function' && (svc as any).mockClear) {
+      (svc as any).mockClear()
     } else if (typeof svc === 'object' && svc !== null) {
       for (const fn of Object.values(svc)) {
-        if (typeof fn === 'function' && fn.mockClear) fn.mockClear()
+        if (typeof fn === 'function' && (fn as any).mockClear) (fn as any).mockClear()
       }
     }
   }

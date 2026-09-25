@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "dev": "tsx index.js",
+    "dev": "tsx watch index.js",
     "build": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest"
@@ -28,6 +28,7 @@
   },
   "imports": {
     "#services/database": "./src/services/database/index.js",
+    "#utils/logger": "./src/utils/logger.js",
     "#services/*": "./src/services/*",
     "#handlers/*": "./src/handlers/*",
     "#polymorphia/*": "./src/polymorphia/*",

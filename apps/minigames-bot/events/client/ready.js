@@ -1,5 +1,7 @@
 const { registerSlashCommands } = require('#handlers/commandHandler')
 const { startSweeper } = require('#services/polymorphiaSweeper')
+const { startVoiceXpTicker } = require('#services/leveling/voiceXpService')
+const { startSeasonScheduler } = require('#services/seasons/seasonScheduler')
 
 module.exports = {
     name: 'ready',
@@ -12,6 +14,8 @@ module.exports = {
         logger.info({ guildCount: client.guilds.cache.size }, 'Serving guilds')
 
         startSweeper(client)
+        startVoiceXpTicker(client)
+        startSeasonScheduler(client)
 
         const mode = process.env.COMMAND_REGISTRATION_MODE || 'guild'
         const guildId = process.env.GUILD_ID

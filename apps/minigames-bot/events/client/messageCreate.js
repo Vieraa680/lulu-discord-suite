@@ -5,7 +5,7 @@ const {
     ButtonStyle
 } = require('discord.js')
 const { handleMention } = require('#services/aiChat')
-const { processActivityMessage } = require('#services/activityRoles')
+const { processTextMessage } = require('#services/leveling/textXpService')
 const logger = require('#utils/logger')
 
 const MIN_REWARD = 5
@@ -55,9 +55,8 @@ module.exports = {
         if (message.author.bot) return
         if (!message.guild) return
 
-        // Process message activity roles in background
-        processActivityMessage(message).catch(err => {
-            logger.error({ err: err.message }, 'Error in processActivityMessage')
+        processTextMessage(message).catch(err => {
+            logger.error({ err: err.message }, 'Error in processTextMessage')
         })
 
         if (message.mentions.has(client.user)) {
