@@ -12,6 +12,7 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 // ──────────────────────────────────────────────
@@ -49,10 +50,15 @@ model User {
   dailyStreak             Int        @default(0) // Current daily claim streak
 
   // ── Relations ──
-  state        PolymorphiaState?
-  items        UserItem[]
-  transactions Transaction[]
-  achievements UserAchievement[]
+  state             PolymorphiaState?
+  items             UserItem[]
+  transactions      Transaction[]
+  achievements      UserAchievement[]
+  channelActivities UserChannelActivity[]
+
+  // ── Message Activity Tracking ──
+  messageCount Int       @default(0) // Total messages sent in this guild
+  lastActiveAt DateTime?             // Timestamp of last detected message
 
   // ── Timestamps ──
   createdAt DateTime @default(now())
@@ -202,3 +208,45 @@ model UserAchievement {
   @@index([userId])
   @@index([achievementId])
 }
+
+// ──────────────────────────────────────────────
+// ACTIVITY ROLE RULE
+// ──────────────────────────────────────────────
+// Configurable rule to automatically award roles based on activity.
+model ActivityRoleRule {
+  id          String   @id @default(uuid())
+  guildId     String
+  name        String?  // Optional descriptive label (e.g. "Chat General Habitual")
+  roleId      String   // Target Discord Role ID
+  roleName    String?  // Cached role name for UI display
+  roleColor   String?  // Cached role hex color for UI badge display
+  channelId   String?  // Target channel ID, or null for all guild channels
+  channelName String?  // Cached channel name for UI display
+  channelIds  String[] @default([]) // Multiple allowed channel IDs (empty means all channels)
+  messagesReq Int      @default(1)  // Message threshold to unlock the role
+  cooldownSec Int      @default(60) // Anti-spam interval (in seconds) between counted messages
+  isEnabled   Boolean  @default(true) // Switch to temporarily pause/enable without deletion
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([guildId])
+}
+
+// ──────────────────────────────────────────────
+// USER CHANNEL ACTIVITY
+// ──────────────────────────────────────────────
+// Tracks message activity count per channel for a user.
+model UserChannelActivity {
+  id            String   @id @default(uuid())
+  userId        String
+  guildId       String
+  channelId     String
+  messageCount  Int      @default(0)
+  lastMessageAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, channelId])
+  @@index([guildId, channelId])
+}
+
