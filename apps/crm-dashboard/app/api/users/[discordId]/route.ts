@@ -1,10 +1,10 @@
-import { getGuildId, getUserDetails } from '@/lib/dashboard-data'
+import { getActiveGuildId, getUserDetails } from '@/lib/dashboard-data'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(request: Request, context: { params: Promise<{ discordId: string }> }) {
   const { discordId } = await context.params
-  const guildId = getGuildId(new URL(request.url).searchParams.get('guildId'))
+  const guildId = await getActiveGuildId(new URL(request.url).searchParams.get('guildId'))
   if (!guildId) return Response.json({ error: 'guildId is required' }, { status: 400 })
 
   const user = await getUserDetails(guildId, discordId)

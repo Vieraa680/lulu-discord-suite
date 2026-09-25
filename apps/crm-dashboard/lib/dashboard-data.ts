@@ -1,128 +1,541 @@
 import { prisma } from '@lulu-discord/database'
 
-export const DEFAULT_GUILD_ID = process.env.GUILD_ID ?? ''
+import { cookies } from 'next/headers'
+
+export const DEFAULT_GUILD_ID = process.env.GUILD_ID?.trim() || ''
+export const DEFAULT_TEST_GUILD_ID = process.env.TEST_GUILD_ID?.trim() || ''
+
+export interface GuildOption {
+  id: string
+  name: string
+  iconUrl?: string | null
+  isTest?: boolean
+}
+
+let botGuildsCache: { timestamp: number; data: GuildOption[] } | null = null
+
+export async function fetchBotGuildsFromDiscord(): Promise<GuildOption[]> {
+  const token = process.env.DISCORD_TOKEN?.trim()
+  if (!token) return []
+
+  if (botGuildsCache && Date.now() - botGuildsCache.timestamp < 60_000) {
+    return botGuildsCache.data
+  }
+
+  try {
+    const res = await fetch('https://discord.com/api/v10/users/@me/guilds', {
+      headers: { Authorization: `Bot ${token}` },
+      next: { revalidate: 60 },
+    })
+
+    if (res.ok) {
+      const guilds = (await res.json()) as Array<{
+        id: string
+        name: string
+        icon: string | null
+      }>
+
+      const formatted: GuildOption[] = guilds.map(g => {
+        const lower = g.name.toLowerCase()
+        const isTest =
+          lower.includes('test') ||
+          lower.includes('prueba') ||
+          lower.includes('dev') ||
+          lower.includes('staging') ||
+          lower.includes('beta')
+
+        return {
+          id: g.id,
+          name: g.name,
+          iconUrl: g.icon ? `https://cdn.discordapp.com/icons/${g.id}/${g.icon}.png?size=64` : null,
+          isTest,
+        }
+      })
+
+      botGuildsCache = { timestamp: Date.now(), data: formatted }
+      return formatted
+    }
+  } catch (err) {
+    console.error('[dashboard-data] fetchBotGuildsFromDiscord error:', err)
+  }
+
+  return []
+}
+
+export async function getAvailableGuilds(): Promise<GuildOption[]> {
+  const guildMap = new Map<string, GuildOption>()
+
+  const discordGuilds = await fetchBotGuildsFromDiscord()
+  for (const g of discordGuilds) {
+    guildMap.set(g.id, g)
+  }
+
+  try {
+    const [configs, userGuilds] = await Promise.all([
+      prisma.guildConfig.findMany({ select: { guildId: true } }),
+      prisma.user.findMany({ distinct: ['guildId'], select: { guildId: true } }),
+    ])
+
+    for (const cfg of configs) {
+      if (cfg.guildId && !guildMap.has(cfg.guildId)) {
+        guildMap.set(cfg.guildId, {
+          id: cfg.guildId,
+          name: `Servidor (${cfg.guildId})`,
+          isTest: false,
+        })
+      }
+    }
+
+    for (const u of userGuilds) {
+      if (u.guildId && !guildMap.has(u.guildId)) {
+        guildMap.set(u.guildId, {
+          id: u.guildId,
+          name: `Servidor (${u.guildId})`,
+          isTest: false,
+        })
+      }
+    }
+  } catch {
+    // Database fallback
+  }
+
+  const envOfficial = process.env.GUILD_ID?.trim()
+  if (envOfficial && !guildMap.has(envOfficial)) {
+    guildMap.set(envOfficial, {
+      id: envOfficial,
+      name: `Servidor (${envOfficial})`,
+      isTest: false,
+    })
+  }
+
+  const envTest = process.env.TEST_GUILD_ID?.trim()
+  if (envTest && !guildMap.has(envTest)) {
+    guildMap.set(envTest, {
+      id: envTest,
+      name: `Servidor de Pruebas (${envTest})`,
+      isTest: true,
+    })
+  }
+
+  return Array.from(guildMap.values())
+}
+
+export async function getActiveGuildId(requestedGuildId?: string | null): Promise<string> {
+  if (requestedGuildId?.trim()) {
+    return requestedGuildId.trim()
+  }
+
+  try {
+    const cookieStore = await cookies()
+    const cookieGuild = cookieStore.get('lulu_selected_guild')?.value
+    if (cookieGuild?.trim()) {
+      return cookieGuild.trim()
+    }
+  } catch {
+    // cookies() unavailable in non-request contexts
+  }
+
+  const available = await getAvailableGuilds()
+  if (available.length > 0) {
+    return available[0].id
+  }
+
+  return ''
+}
+
+export async function getGuildId(searchGuildId?: string | null): Promise<string> {
+  return getActiveGuildId(searchGuildId)
+}
 
 export const LEADERBOARD_FIELDS = {
   candies: 'candies',
   wins: 'polymorphiaWins',
   defenses: 'polymorphiaSaved',
   earned: 'totalEarned',
-  losses: 'polymorphiaLosses',
+  streak: 'dailyStreak',
 } as const
 
 export type LeaderboardCategory = keyof typeof LEADERBOARD_FIELDS
 
-export function getGuildId(searchGuildId?: string | null) {
-  return searchGuildId || DEFAULT_GUILD_ID
+export interface DashboardStats {
+  totalUsers: number
+  totalCandies: number
+  totalEarned: number
+  totalSpent: number
+  totalDuels: number
+  totalWins: number
+  totalLosses: number
+  totalSaved: number
+  activePolymorphiaCount: number
+  totalTransactions: number
+  butterfliesCaught: number
+  isDbConnected: boolean
 }
 
-export async function getDashboardStats(guildId: string) {
-  const [
-    totalUsers,
-    totalCandies,
-    totalEarned,
-    totalSpent,
-    totalWins,
-    totalLosses,
-    totalSaved,
-    activePolymorphiaCount,
-    totalTransactions,
-    butterfliesCaught,
-  ] = await Promise.all([
-    prisma.user.count({ where: { guildId } }),
-    prisma.user.aggregate({ where: { guildId }, _sum: { candies: true } }),
-    prisma.user.aggregate({ where: { guildId }, _sum: { totalEarned: true } }),
-    prisma.user.aggregate({ where: { guildId }, _sum: { totalSpent: true } }),
-    prisma.user.aggregate({ where: { guildId }, _sum: { polymorphiaWins: true } }),
-    prisma.user.aggregate({ where: { guildId }, _sum: { polymorphiaLosses: true } }),
-    prisma.user.aggregate({ where: { guildId }, _sum: { polymorphiaSaved: true } }),
-    prisma.polymorphiaState.count({ where: { guildId, isActive: true } }),
-    prisma.transaction.count({ where: { user: { guildId } } }),
-    prisma.transaction.count({ where: { user: { guildId }, description: { contains: 'mariposa' } } }),
-  ])
+export interface DashboardUser {
+  id: string
+  discordId: string
+  guildId?: string
+  username: string
+  globalName: string | null
+  avatarUrl: string | null
+  candies: number
+  totalEarned: number
+  totalSpent: number
+  polymorphiaWins: number
+  polymorphiaLosses: number
+  polymorphiaSaved: number
+  dailyStreak: number
+  createdAt: Date
+  state: {
+    id: string
+    isActive: boolean
+    currentForm: string
+    isVoluntary: boolean
+    startedAt: Date | null
+    endsAt: Date | null
+  } | null
+  items: Array<{
+    id: string
+    quantity: number
+    item: {
+      id: string
+      name: string
+      emoji: string
+      rarity: string
+      category: string
+      price: number
+    }
+  }>
+}
 
-  return {
-    totalUsers,
-    totalCandies: totalCandies._sum.candies ?? 0,
-    totalEarned: totalEarned._sum.totalEarned ?? 0,
-    totalSpent: totalSpent._sum.totalSpent ?? 0,
-    totalDuels: (totalWins._sum.polymorphiaWins ?? 0) + (totalLosses._sum.polymorphiaLosses ?? 0),
-    totalWins: totalWins._sum.polymorphiaWins ?? 0,
-    totalLosses: totalLosses._sum.polymorphiaLosses ?? 0,
-    totalSaved: totalSaved._sum.polymorphiaSaved ?? 0,
-    activePolymorphiaCount,
-    totalTransactions,
-    butterfliesCaught,
+export async function getDashboardStats(guildId: string): Promise<DashboardStats> {
+  if (!guildId) {
+    return {
+      totalUsers: 0,
+      totalCandies: 0,
+      totalEarned: 0,
+      totalSpent: 0,
+      totalDuels: 0,
+      totalWins: 0,
+      totalLosses: 0,
+      totalSaved: 0,
+      activePolymorphiaCount: 0,
+      totalTransactions: 0,
+      butterfliesCaught: 0,
+      isDbConnected: true,
+    }
+  }
+
+  try {
+    const [
+      totalUsers,
+      candiesAgg,
+      earnedAgg,
+      spentAgg,
+      winsAgg,
+      lossesAgg,
+      savedAgg,
+      activePolymorphiaCount,
+      totalTransactions,
+      butterfliesCaught,
+    ] = await Promise.all([
+      prisma.user.count({ where: { guildId } }),
+      prisma.user.aggregate({ where: { guildId }, _sum: { candies: true } }),
+      prisma.user.aggregate({ where: { guildId }, _sum: { totalEarned: true } }),
+      prisma.user.aggregate({ where: { guildId }, _sum: { totalSpent: true } }),
+      prisma.user.aggregate({ where: { guildId }, _sum: { polymorphiaWins: true } }),
+      prisma.user.aggregate({ where: { guildId }, _sum: { polymorphiaLosses: true } }),
+      prisma.user.aggregate({ where: { guildId }, _sum: { polymorphiaSaved: true } }),
+      prisma.polymorphiaState.count({ where: { guildId, isActive: true } }),
+      prisma.transaction.count({ where: { user: { guildId } } }),
+      prisma.transaction.count({ where: { user: { guildId }, description: { contains: 'mariposa', mode: 'insensitive' } } }),
+    ])
+
+    const totalWins = winsAgg._sum.polymorphiaWins ?? 0
+    const totalLosses = lossesAgg._sum.polymorphiaLosses ?? 0
+
+    return {
+      totalUsers,
+      totalCandies: candiesAgg._sum.candies ?? 0,
+      totalEarned: earnedAgg._sum.totalEarned ?? 0,
+      totalSpent: spentAgg._sum.totalSpent ?? 0,
+      totalDuels: totalWins + totalLosses,
+      totalWins,
+      totalLosses,
+      totalSaved: savedAgg._sum.polymorphiaSaved ?? 0,
+      activePolymorphiaCount,
+      totalTransactions,
+      butterfliesCaught,
+      isDbConnected: true,
+    }
+  } catch (error) {
+    console.error('[dashboard-data] getDashboardStats error:', error)
+    return {
+      totalUsers: 0,
+      totalCandies: 0,
+      totalEarned: 0,
+      totalSpent: 0,
+      totalDuels: 0,
+      totalWins: 0,
+      totalLosses: 0,
+      totalSaved: 0,
+      activePolymorphiaCount: 0,
+      totalTransactions: 0,
+      butterfliesCaught: 0,
+      isDbConnected: false,
+    }
   }
 }
 
-export async function getLeaderboard(guildId: string, category: LeaderboardCategory = 'candies', limit = 10) {
-  const field = LEADERBOARD_FIELDS[category] ?? LEADERBOARD_FIELDS.candies
+export async function getActivePolymorphia(guildId: string) {
+  if (!guildId) return []
 
-  const users = await prisma.user.findMany({
-    where: {
-      guildId,
-      [field]: { gt: 0 },
-    },
-    orderBy: { [field]: 'desc' },
-    take: limit,
-    select: {
-      discordId: true,
-      username: true,
-      candies: true,
-      polymorphiaWins: true,
-      polymorphiaSaved: true,
-      totalEarned: true,
-      polymorphiaLosses: true,
-    },
-  })
+  try {
+    const states = await prisma.polymorphiaState.findMany({
+      where: { guildId, isActive: true },
+      include: {
+        user: { select: { discordId: true, username: true, globalName: true, avatarUrl: true } },
+      },
+      orderBy: { endsAt: 'asc' },
+    })
 
-  return users.map((user, index) => ({
-    rank: index + 1,
-    discordId: user.discordId,
-    username: user.username || user.discordId,
-    value: user[field],
-  }))
+    return states.map(s => ({
+      id: s.id,
+      discordId: s.user.discordId,
+      username: s.user.globalName || s.user.username || s.user.discordId,
+      avatarUrl: s.user.avatarUrl,
+      currentForm: s.currentForm,
+      isVoluntary: s.isVoluntary,
+      endsAt: s.endsAt ? s.endsAt.toISOString() : null,
+      minutesRemaining: s.endsAt ? Math.max(0, Math.round((s.endsAt.getTime() - Date.now()) / 60000)) : 0,
+    }))
+  } catch {
+    return []
+  }
 }
 
-export async function searchUsers(guildId: string, query = '', limit = 25) {
-  return prisma.user.findMany({
-    where: {
-      guildId,
-      ...(query
-        ? {
-            OR: [
-              { username: { contains: query, mode: 'insensitive' } },
-              { discordId: { contains: query } },
-            ],
-          }
-        : {}),
-    },
-    orderBy: { updatedAt: 'desc' },
-    take: limit,
-    include: {
-      state: true,
-      items: { include: { item: true } },
-    },
-  })
+export async function getLeaderboard(guildId: string, category: LeaderboardCategory = 'candies', limit = 25) {
+  const field = LEADERBOARD_FIELDS[category] ?? LEADERBOARD_FIELDS.candies
+  if (!guildId) return []
+
+  try {
+    const users = await prisma.user.findMany({
+      where: {
+        guildId,
+        [field]: { gt: 0 },
+      },
+      orderBy: { [field]: 'desc' },
+      take: limit,
+      select: {
+        discordId: true,
+        username: true,
+        globalName: true,
+        avatarUrl: true,
+        candies: true,
+        polymorphiaWins: true,
+        polymorphiaLosses: true,
+        polymorphiaSaved: true,
+        totalEarned: true,
+        dailyStreak: true,
+      },
+    })
+
+    return users.map((user, index) => ({
+      rank: index + 1,
+      discordId: user.discordId,
+      username: user.globalName || user.username || user.discordId,
+      avatarUrl: user.avatarUrl,
+      value: (user[field as keyof typeof user] as number) ?? 0,
+      wins: user.polymorphiaWins,
+      losses: user.polymorphiaLosses,
+      candies: user.candies,
+      streak: user.dailyStreak,
+    }))
+  } catch {
+    return []
+  }
+}
+
+export async function searchUsers(guildId: string, query = '', limit = 40): Promise<DashboardUser[]> {
+  if (!guildId) return []
+
+  try {
+    const users = await prisma.user.findMany({
+      where: {
+        guildId,
+        ...(query
+          ? {
+              OR: [
+                { username: { contains: query, mode: 'insensitive' } },
+                { globalName: { contains: query, mode: 'insensitive' } },
+                { discordId: { contains: query } },
+              ],
+            }
+          : {}),
+      },
+      orderBy: { updatedAt: 'desc' },
+      take: limit,
+      include: {
+        state: true,
+        items: { include: { item: true } },
+      },
+    })
+
+    return users.map(u => ({
+      id: u.id,
+      discordId: u.discordId,
+      guildId: u.guildId,
+      username: u.username || u.discordId,
+      globalName: u.globalName,
+      avatarUrl: u.avatarUrl,
+      candies: u.candies,
+      totalEarned: u.totalEarned,
+      totalSpent: u.totalSpent,
+      polymorphiaWins: u.polymorphiaWins,
+      polymorphiaLosses: u.polymorphiaLosses,
+      polymorphiaSaved: u.polymorphiaSaved,
+      dailyStreak: u.dailyStreak,
+      createdAt: u.createdAt,
+      state: u.state,
+      items: u.items,
+    }))
+  } catch {
+    return []
+  }
 }
 
 export async function getUserDetails(guildId: string, discordId: string) {
-  return prisma.user.findUnique({
-    where: { discordId_guildId: { discordId, guildId } },
-    include: {
-      state: true,
-      items: { include: { item: true }, where: { quantity: { gt: 0 } } },
-      transactions: { orderBy: { createdAt: 'desc' }, take: 25 },
-    },
-  })
+  if (!guildId || !discordId) return null
+
+  try {
+    const user = await prisma.user.findUnique({
+      where: { discordId_guildId: { discordId, guildId } },
+      include: {
+        state: true,
+        items: { include: { item: true }, where: { quantity: { gt: 0 } } },
+        transactions: { orderBy: { createdAt: 'desc' }, take: 40 },
+        achievements: { include: { achievement: true }, orderBy: { unlockedAt: 'desc' } },
+      },
+    })
+
+    return user
+  } catch {
+    return null
+  }
 }
 
-export async function getRecentTransactions(guildId: string, limit = 25) {
-  return prisma.transaction.findMany({
-    where: { user: { guildId } },
-    orderBy: { createdAt: 'desc' },
-    take: limit,
-    include: { user: { select: { discordId: true, username: true } } },
-  })
+export async function getRecentTransactions(guildId: string, limit = 40, filterType?: string) {
+  if (!guildId) return []
+
+  try {
+    const transactions = await prisma.transaction.findMany({
+      where: {
+        user: { guildId },
+        ...(filterType && filterType !== 'all' ? { type: filterType } : {}),
+      },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+      include: { user: { select: { discordId: true, username: true, globalName: true, avatarUrl: true } } },
+    })
+
+    return transactions.map(t => ({
+      id: t.id,
+      type: t.type,
+      amount: t.amount,
+      balanceAfter: t.balanceAfter,
+      description: t.description,
+      createdAt: t.createdAt,
+      user: {
+        discordId: t.user.discordId,
+        username: t.user.globalName || t.user.username || t.user.discordId,
+        avatarUrl: t.user.avatarUrl,
+      },
+    }))
+  } catch {
+    return []
+  }
+}
+
+export async function getItemsCatalog() {
+  try {
+    const items = await prisma.item.findMany({
+      orderBy: [{ category: 'asc' }, { price: 'asc' }],
+      include: {
+        _count: { select: { owners: true } },
+      },
+    })
+
+    return items.map(item => ({
+      id: item.id,
+      name: item.name,
+      description: item.description,
+      emoji: item.emoji,
+      price: item.price,
+      category: item.category,
+      rarity: item.rarity,
+      isCollectible: item.isCollectible,
+      isActive: item.isActive,
+      formDuration: item.formDuration,
+      ownersCount: item._count.owners,
+    }))
+  } catch {
+    return []
+  }
+}
+
+export async function getGuildConfig(guildId: string) {
+  if (!guildId) {
+    return {
+      id: 'cfg-empty',
+      guildId: '',
+      veteranRoleName: 'Invocador Veterano',
+      butterflyExcludedChannels: [],
+      butterflyMultiplier: 1.0,
+      candyMultiplier: 1.0,
+      polymorphiaMinBet: 1,
+      polymorphiaMaxBet: 1000,
+      adminRoleId: null,
+      logChannelId: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }
+  }
+
+  try {
+    let config = await prisma.guildConfig.findUnique({
+      where: { guildId },
+    })
+
+    if (!config) {
+      config = await prisma.guildConfig.create({
+        data: {
+          guildId,
+          veteranRoleName: 'Invocador Veterano',
+          butterflyExcludedChannels: [],
+          butterflyMultiplier: 1.0,
+          candyMultiplier: 1.0,
+          polymorphiaMinBet: 1,
+          polymorphiaMaxBet: 1000,
+        },
+      })
+    }
+
+    return config
+  } catch {
+    return {
+      id: 'cfg-fallback',
+      guildId,
+      veteranRoleName: 'Invocador Veterano',
+      butterflyExcludedChannels: [],
+      butterflyMultiplier: 1.0,
+      candyMultiplier: 1.0,
+      polymorphiaMinBet: 1,
+      polymorphiaMaxBet: 1000,
+      adminRoleId: null,
+      logChannelId: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }
+  }
 }

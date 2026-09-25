@@ -1,4 +1,4 @@
-import { getGuildId, getLeaderboard, LEADERBOARD_FIELDS, type LeaderboardCategory } from '@/lib/dashboard-data'
+import { getActiveGuildId, getLeaderboard, LEADERBOARD_FIELDS, type LeaderboardCategory } from '@/lib/dashboard-data'
 
 export const dynamic = 'force-dynamic'
 
@@ -9,7 +9,7 @@ export async function GET(request: Request, context: { params: Promise<{ categor
   }
 
   const searchParams = new URL(request.url).searchParams
-  const guildId = getGuildId(searchParams.get('guildId'))
+  const guildId = await getActiveGuildId(searchParams.get('guildId'))
   const limit = Number(searchParams.get('limit') ?? 10)
   if (!guildId) return Response.json({ error: 'guildId is required' }, { status: 400 })
 
