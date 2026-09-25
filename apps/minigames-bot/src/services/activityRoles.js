@@ -80,19 +80,23 @@ async function assignActivityRole(message, rule) {
             'Activity role successfully assigned'
         )
 
-        const locationName = rule.channelName
-            ? rule.channelName
+        const locationText = rule.channelName && rule.channelName !== 'Todo el servidor'
+            ? `en **${rule.channelName}**`
             : rule.channelId
-            ? `#${message.channel.name}`
-            : message.guild.name
+            ? `en **#${message.channel.name}**`
+            : 'en el servidor'
+
+        const msgText = rule.messagesReq === 1
+            ? 'su primer mensaje'
+            : `los **${rule.messagesReq.toLocaleString()} mensajes**`
 
         const embed = new EmbedBuilder()
-            .setTitle('✨ ¡Nuevo Rol Desbloqueado!')
+            .setTitle(`🎉 ¡Nuevo rol para ${message.member?.displayName || message.author.username}!`)
             .setDescription(
-                `¡Enhorabuena, ${message.author}! Por tu actividad en **${locationName}**, has alcanzado **${rule.messagesReq.toLocaleString()} mensajes** y obtenido el rol **${role.name}**! 🎉`
+                `¡${message.author} llegó a ${msgText} ${locationText} y desbloqueó el rol **${role.name}**! 🪄`
             )
             .setColor(role.color || 0xa020f0)
-            .setFooter({ text: 'Lulu Suite — Roles por Actividad' })
+            .setFooter({ text: 'seguí chateando para más cositas 👀' })
             .setTimestamp()
 
         await message.channel.send({ embeds: [embed] }).catch(err => {
