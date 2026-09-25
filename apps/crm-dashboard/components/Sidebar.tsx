@@ -17,6 +17,7 @@ const navItems = [
   { href: '/dashboard/leaderboard', label: 'Clasificación', icon: 'TROPHY' },
   { href: '/dashboard/transactions', label: 'Transacciones', icon: 'CANDY' },
   { href: '/dashboard/items', label: 'Catálogo', icon: 'PACKAGE' },
+  { href: '/dashboard/activity-roles', label: 'Roles por Actividad', icon: 'MEDAL' },
   { href: '/dashboard/settings', label: 'Configuración', icon: 'ALARM' },
 ]
 

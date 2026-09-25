@@ -314,3 +314,160 @@ export async function updateItemPrice(formData: FormData): Promise<ActionRespons
     return { success: false, message: 'Error al actualizar precio.' }
   }
 }
+
+export interface CreateRoleResponse extends ActionResponse {
+  role?: {
+    id: string
+    name: string
+    color: number
+    hexColor: string
+    position: number
+  }
+}
+
+export async function createDiscordRole(formData: FormData): Promise<CreateRoleResponse> {
+  const guildId = (formData.get('guildId') as string)?.trim()
+  const name = (formData.get('name') as string)?.trim()
+  const colorHex = (formData.get('color') as string)?.trim() || '#a855f7'
+  const hoist = formData.get('hoist') === 'true'
+
+  if (!guildId) return { success: false, message: 'ID de servidor requerido.' }
+  if (!name) return { success: false, message: 'Debes ingresar un nombre para el nuevo rol.' }
+
+  const token = process.env.DISCORD_TOKEN?.trim()
+  if (!token) return { success: false, message: 'DISCORD_TOKEN no configurado en el servidor.' }
+
+  const cleanHex = colorHex.replace('#', '')
+  const colorInt = parseInt(cleanHex, 16) || 0
+
+  try {
+    const res = await fetch(`https://discord.com/api/v10/guilds/${guildId}/roles`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bot ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        name,
+        color: colorInt,
+        hoist,
+      }),
+    })
+
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}))
+      console.error('[actions] createDiscordRole failed:', errData)
+      const errorMsg =
+        errData?.message ||
+        'Error de permisos en Discord: Asegúrate de que el bot tenga el permiso "Gestionar roles" y que su rol esté por encima en la jerarquía del servidor.'
+      return { success: false, message: errorMsg }
+    }
+
+    const created = (await res.json()) as {
+      id: string
+      name: string
+      color: number
+      position: number
+    }
+
+    const formattedRole = {
+      id: created.id,
+      name: created.name,
+      color: created.color,
+      hexColor: created.color ? `#${created.color.toString(16).padStart(6, '0')}` : colorHex,
+      position: created.position ?? 0,
+    }
+
+    revalidatePath('/dashboard/activity-roles')
+    return {
+      success: true,
+      message: `¡Rol "${created.name}" creado con éxito en Discord!`,
+      role: formattedRole,
+    }
+  } catch (error) {
+    console.error('[actions] createDiscordRole error:', error)
+    return { success: false, message: 'No se pudo contactar con la API de Discord.' }
+  }
+}
+
+export async function createActivityRoleRule(formData: FormData): Promise<ActionResponse> {
+  const guildId = (formData.get('guildId') as string)?.trim()
+  const name = (formData.get('name') as string)?.trim()
+  const roleId = (formData.get('roleId') as string)?.trim()
+  const roleName = (formData.get('roleName') as string)?.trim() || null
+  const roleColor = (formData.get('roleColor') as string)?.trim() || null
+  const channelName = (formData.get('channelName') as string)?.trim() || null
+  const messagesReq = parseInt(formData.get('messagesReq') as string, 10) || 1
+  const cooldownSec = parseInt(formData.get('cooldownSec') as string, 10) || 60
+
+  if (!guildId) return { success: false, message: 'ID de servidor requerido.' }
+  if (!name) return { success: false, message: 'El nombre de la regla es obligatorio.' }
+  if (!roleId) return { success: false, message: 'Debes seleccionar un rol de Discord.' }
+  if (messagesReq < 1) return { success: false, message: 'La cantidad de mensajes requeridos debe ser al menos 1.' }
+
+  try {
+    await prisma.activityRoleRule.create({
+      data: {
+        guildId,
+        name,
+        roleId,
+        roleName,
+        roleColor,
+        channelId,
+        channelName,
+        channelIds,
+        messagesReq,
+        cooldownSec: Math.max(5, cooldownSec),
+        isEnabled: true,
+      },
+    })
+
+    revalidatePath('/dashboard/activity-roles')
+    return { success: true, message: 'Regla de rol por actividad creada con éxito.' }
+  } catch (error) {
+    console.error('[actions] createActivityRoleRule error:', error)
+    return { success: false, message: 'Error al crear la regla en la base de datos.' }
+  }
+}
+
+export async function toggleActivityRoleRule(formData: FormData): Promise<ActionResponse> {
+  const id = formData.get('id') as string
+  const isEnabled = formData.get('isEnabled') === 'true'
+
+  if (!id) return { success: false, message: 'ID de regla no especificado.' }
+
+  try {
+    await prisma.activityRoleRule.update({
+      where: { id },
+      data: { isEnabled },
+    })
+
+    revalidatePath('/dashboard/activity-roles')
+    return {
+      success: true,
+      message: isEnabled ? 'Regla activada.' : 'Regla pausada.',
+    }
+  } catch (error) {
+    console.error('[actions] toggleActivityRoleRule error:', error)
+    return { success: false, message: 'Error al cambiar estado de la regla.' }
+  }
+}
+
+export async function deleteActivityRoleRule(formData: FormData): Promise<ActionResponse> {
+  const id = formData.get('id') as string
+
+  if (!id) return { success: false, message: 'ID de regla no especificado.' }
+
+  try {
+    await prisma.activityRoleRule.delete({
+      where: { id },
+    })
+
+    revalidatePath('/dashboard/activity-roles')
+    return { success: true, message: 'Regla eliminada con éxito.' }
+  } catch (error) {
+    console.error('[actions] deleteActivityRoleRule error:', error)
+    return { success: false, message: 'Error al eliminar la regla.' }
+  }
+}
+

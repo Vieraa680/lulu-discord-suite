@@ -539,3 +539,103 @@ export async function getGuildConfig(guildId: string) {
     }
   }
 }
+
+export interface DiscordGuildRole {
+  id: string
+  name: string
+  color: number
+  hexColor: string
+  position: number
+}
+
+export interface DiscordGuildChannel {
+  id: string
+  name: string
+  type: number
+}
+
+export async function fetchGuildRoles(guildId: string): Promise<DiscordGuildRole[]> {
+  const token = process.env.DISCORD_TOKEN?.trim()
+  if (!token || !guildId) return []
+
+  try {
+    const res = await fetch(`https://discord.com/api/v10/guilds/${guildId}/roles`, {
+      headers: { Authorization: `Bot ${token}` },
+      next: { revalidate: 30 },
+    })
+
+    if (res.ok) {
+      const roles = (await res.json()) as Array<{
+        id: string
+        name: string
+        color: number
+        position: number
+        managed?: boolean
+      }>
+
+      return roles
+        .filter(r => r.name !== '@everyone' && !r.managed)
+        .sort((a, b) => b.position - a.position)
+        .map(r => ({
+          id: r.id,
+          name: r.name,
+          color: r.color,
+          hexColor: r.color ? `#${r.color.toString(16).padStart(6, '0')}` : '#71717a',
+          position: r.position,
+        }))
+    }
+  } catch (err) {
+    console.error('[dashboard-data] fetchGuildRoles error:', err)
+  }
+
+  return []
+}
+
+export async function fetchGuildChannels(guildId: string): Promise<DiscordGuildChannel[]> {
+  const token = process.env.DISCORD_TOKEN?.trim()
+  if (!token || !guildId) return []
+
+  try {
+    const res = await fetch(`https://discord.com/api/v10/guilds/${guildId}/channels`, {
+      headers: { Authorization: `Bot ${token}` },
+      next: { revalidate: 30 },
+    })
+
+    if (res.ok) {
+      const channels = (await res.json()) as Array<{
+        id: string
+        name: string
+        type: number
+        position?: number
+      }>
+
+      return channels
+        .filter(c => c.type === 0 || c.type === 5)
+        .sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
+        .map(c => ({
+          id: c.id,
+          name: c.name,
+          type: c.type,
+        }))
+    }
+  } catch (err) {
+    console.error('[dashboard-data] fetchGuildChannels error:', err)
+  }
+
+  return []
+}
+
+export async function getActivityRoleRules(guildId: string) {
+  if (!guildId) return []
+
+  try {
+    return await prisma.activityRoleRule.findMany({
+      where: { guildId },
+      orderBy: { createdAt: 'desc' },
+    })
+  } catch (err) {
+    console.error('[dashboard-data] getActivityRoleRules error:', err)
+    return []
+  }
+}
+
