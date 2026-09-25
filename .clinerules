@@ -50,6 +50,7 @@ Examples:
 **Commits that do not follow this convention will be rejected or rebased.**
 
 ## Tech Stack Guidelines
+- **Code Search:** Use `tgrep` for fast indexed search (`tgrep index` to refresh index, `tgrep "<pattern>"` to query).
 - **Backend/Bots:** Node.js, JavaScript/TypeScript, Discord.js v14+, dotenv. Use Slash Commands (`/`) for bot interactions; avoid legacy text prefix commands except for passive event listening.
 - **Frontend:** Next.js (latest stable, App Router), TypeScript, Tailwind CSS.
 - **Database:** Prisma ORM connecting to PostgreSQL. Always update the schema in `packages/database` so both the bots and the web dashboard stay in sync.
