@@ -17,7 +17,7 @@ export interface RoleSelectProps {
   label?: React.ReactNode
   description?: React.ReactNode
   disabled?: boolean
-  onCreateNew?: () => void
+  onCreateNew?: (suggestedName?: string) => void
   placeholder?: string
   error?: string
   className?: string
@@ -210,7 +210,7 @@ export function RoleSelect({
                     type="button"
                     onClick={() => {
                       setIsOpen(false)
-                      onCreateNew()
+                      onCreateNew(searchQuery.trim())
                     }}
                     className="mt-2 text-xs font-semibold text-purple-400 hover:text-purple-300 hover:underline"
                   >
@@ -259,7 +259,7 @@ export function RoleSelect({
                 type="button"
                 onClick={() => {
                   setIsOpen(false)
-                  onCreateNew()
+                  onCreateNew(searchQuery.trim())
                 }}
                 className="w-full flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-medium text-purple-400 hover:bg-purple-950/30 hover:text-purple-300 transition-colors"
               >

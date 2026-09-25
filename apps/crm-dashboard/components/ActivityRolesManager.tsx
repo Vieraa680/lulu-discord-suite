@@ -49,12 +49,28 @@ export function ActivityRolesManager({
   const [loading, setLoading] = useState(false)
   const [feedback, setFeedback] = useState<ActionResponse | null>(null)
 
-  // Creation of Discord Role inside modal
-  const [isCreatingRole, setIsCreatingRole] = useState(false)
+  // Modal view management ('rule' or 'create_role')
+  const [modalView, setModalView] = useState<'rule' | 'create_role'>('rule')
+  const [modalFeedback, setModalFeedback] = useState<ActionResponse | null>(null)
   const [newRoleName, setNewRoleName] = useState('')
   const [newRoleColor, setNewRoleColor] = useState('#a855f7')
   const [newRoleHoist, setNewRoleHoist] = useState(false)
   const [creatingRoleLoading, setCreatingRoleLoading] = useState(false)
+
+  // Modal open / close handlers
+  const handleOpenModal = () => {
+    setIsModalOpen(true)
+    setModalView('rule')
+    setModalFeedback(null)
+    setChannelSearchQuery('')
+  }
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false)
+    setModalView('rule')
+    setModalFeedback(null)
+    setChannelSearchQuery('')
+  }
 
   // Rule Form state
   const [selectedRoleId, setSelectedRoleId] = useState(rolesList[0]?.id || '')
@@ -108,12 +124,12 @@ export function ActivityRolesManager({
   const handleCreateDiscordRole = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!newRoleName.trim()) {
-      setFeedback({ success: false, message: 'Ingresa un nombre para el nuevo rol.' })
+      setModalFeedback({ success: false, message: 'Ingresa un nombre para el nuevo rol.' })
       return
     }
 
     setCreatingRoleLoading(true)
-    setFeedback(null)
+    setModalFeedback(null)
 
     const formData = new FormData()
     formData.append('guildId', guildId)
@@ -123,14 +139,21 @@ export function ActivityRolesManager({
 
     const res = await createDiscordRole(formData)
     setCreatingRoleLoading(false)
-    setFeedback(res)
 
     if (res.success && res.role) {
       const createdRole = res.role
       setRolesList(prev => [createdRole, ...prev])
       setSelectedRoleId(createdRole.id)
-      setIsCreatingRole(false)
       setNewRoleName('')
+      setNewRoleColor('#a855f7')
+      setNewRoleHoist(false)
+      setModalView('rule')
+      setModalFeedback({
+        success: true,
+        message: `Rol «${createdRole.name}» creado en Discord y seleccionado.`,
+      })
+    } else {
+      setModalFeedback(res)
     }
   }
 
@@ -138,24 +161,24 @@ export function ActivityRolesManager({
   const handleCreateRule = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
-    setFeedback(null)
+    setModalFeedback(null)
 
     const roleObj = rolesList.find(r => r.id === selectedRoleId)
 
     if (!ruleName.trim()) {
-      setFeedback({ success: false, message: 'El nombre de la regla es obligatorio.' })
+      setModalFeedback({ success: false, message: 'El nombre de la regla es obligatorio.' })
       setLoading(false)
       return
     }
 
     if (!selectedRoleId || !roleObj) {
-      setFeedback({ success: false, message: 'Debes seleccionar un rol de Discord.' })
+      setModalFeedback({ success: false, message: 'Debes seleccionar un rol de Discord.' })
       setLoading(false)
       return
     }
 
     if (channelMode === 'specific' && selectedChannelIds.length === 0) {
-      setFeedback({
+      setModalFeedback({
         success: false,
         message: 'Por favor selecciona al menos un canal para la regla.',
       })
@@ -188,17 +211,21 @@ export function ActivityRolesManager({
     formData.append('cooldownSec', cooldownSec.toString())
 
     const res = await createActivityRoleRule(formData)
-    setFeedback(res)
     setLoading(false)
 
     if (res.success) {
+      setFeedback(res)
       setIsModalOpen(false)
+      setModalView('rule')
+      setModalFeedback(null)
       setRuleName('')
       setSelectedChannelIds([])
       setChannelSearchQuery('')
       setChannelMode('all')
       setMessagesReq(50)
       setCooldownSec(60)
+    } else {
+      setModalFeedback(res)
     }
   }
 
@@ -233,10 +260,7 @@ export function ActivityRolesManager({
         </div>
 
         <button
-          onClick={() => {
-            setIsModalOpen(true)
-            setIsCreatingRole(false)
-          }}
+          onClick={handleOpenModal}
           className="inline-flex items-center justify-center gap-2 rounded-xl bg-purple-600 px-4 py-2.5 text-xs font-semibold text-white shadow-lg shadow-purple-900/30 transition-all hover:bg-purple-500 active:scale-[0.98]"
         >
           <Icon icon="mdi:plus" className="h-4 w-4" />
@@ -272,10 +296,7 @@ export function ActivityRolesManager({
             Crea roles con colores personalizados y define en qué canales debe chatear la gente para ganarlos.
           </p>
           <button
-            onClick={() => {
-              setIsModalOpen(true)
-              setIsCreatingRole(false)
-            }}
+            onClick={handleOpenModal}
             className="mt-5 inline-flex items-center gap-2 rounded-xl border border-zinc-700 bg-zinc-800 px-4 py-2 text-xs font-medium text-zinc-100 hover:bg-zinc-700 hover:text-white"
           >
             <Icon icon="mdi:plus" className="h-4 w-4" />
@@ -413,49 +434,76 @@ export function ActivityRolesManager({
 
       {/* Main Creation Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm overflow-y-auto">
-          <div className="my-8 w-full max-w-lg rounded-2xl border border-zinc-800 bg-zinc-950 p-6 shadow-2xl">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/80 backdrop-blur-sm overflow-y-auto"
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="my-auto w-full max-w-lg rounded-2xl border border-zinc-800 bg-zinc-950 shadow-2xl max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
             {/* Modal Header */}
-            <div className="flex items-center justify-between border-b border-zinc-800/80 pb-4">
-              <div className="flex items-center gap-2.5">
-                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-purple-950/60 text-purple-400 border border-purple-800/40">
-                  <Icon icon="mdi:medal" className="h-5 w-5" />
+            <div className="shrink-0 flex items-center justify-between border-b border-zinc-800/80 px-6 py-4">
+              {modalView === 'rule' ? (
+                <div className="flex items-center gap-2.5">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-purple-950/60 text-purple-400 border border-purple-800/40 shrink-0">
+                    <Icon icon="mdi:medal" className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold text-zinc-100">Nueva Regla de Rol por Actividad</h3>
+                    <p className="text-[11px] text-zinc-500">Configura la meta, rol y canales de conteo</p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="text-sm font-semibold text-zinc-100">Nueva Regla de Rol por Actividad</h3>
-                  <p className="text-[11px] text-zinc-500">Configura la meta, rol y canales de conteo</p>
+              ) : (
+                <div className="flex items-center gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setModalView('rule')
+                      setModalFeedback(null)
+                    }}
+                    className="flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-800 bg-zinc-900/60 text-zinc-400 hover:text-zinc-100 hover:border-zinc-700 transition-colors shrink-0"
+                    title="Volver a la regla"
+                  >
+                    <Icon icon="mdi:arrow-left" className="h-4 w-4" />
+                  </button>
+                  <div>
+                    <h3 className="text-sm font-semibold text-zinc-100">Crear Nuevo Rol en Discord</h3>
+                    <p className="text-[11px] text-zinc-500">Define el nombre y estilo del rol en tu servidor</p>
+                  </div>
                 </div>
-              </div>
+              )}
 
               <button
-                onClick={() => {
-                  setIsModalOpen(false)
-                  setChannelSearchQuery('')
-                }}
-                className="rounded-lg p-1.5 text-zinc-500 hover:bg-zinc-900 hover:text-zinc-300"
+                type="button"
+                onClick={handleCloseModal}
+                className="rounded-lg p-1.5 text-zinc-500 hover:bg-zinc-900 hover:text-zinc-300 transition-colors"
+                title="Cerrar modal"
               >
                 <Icon icon="mdi:close" className="h-4 w-4" />
               </button>
             </div>
 
-            {/* Sub-form: Create Discord Role with Color Picker */}
-            {isCreatingRole ? (
-              <div className="mt-5 rounded-2xl border border-purple-800/50 bg-purple-950/20 p-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-xs font-semibold text-purple-200">
-                    <Icon icon="mdi:palette-outline" className="h-4 w-4 text-purple-400" />
-                    <span>Crear Nuevo Rol en Discord</span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setIsCreatingRole(false)}
-                    className="text-[11px] text-zinc-400 hover:text-white"
-                  >
-                    Volver a lista
-                  </button>
+            {/* Modal Scrollable Body */}
+            <div className="overflow-y-auto min-h-0 flex-1 p-6 space-y-4">
+              {/* Modal Local Feedback */}
+              {modalFeedback && (
+                <div
+                  className={`flex items-center gap-2 rounded-xl border p-3 text-xs font-medium ${
+                    modalFeedback.success
+                      ? 'border-emerald-800/50 bg-emerald-950/20 text-emerald-300'
+                      : 'border-red-800/50 bg-red-950/20 text-red-300'
+                  }`}
+                >
+                  <Icon
+                    icon={modalFeedback.success ? 'mdi:check-circle' : 'mdi:alert-circle'}
+                    className="h-4 w-4 shrink-0"
+                  />
+                  <span>{modalFeedback.message}</span>
                 </div>
+              )}
 
-                <form onSubmit={handleCreateDiscordRole} className="mt-3.5 space-y-3.5">
+              {modalView === 'create_role' ? (
+                /* Sub-form: Create Discord Role with Color Picker & Presets */
+                <form onSubmit={handleCreateDiscordRole} className="space-y-4">
                   <Input
                     label="Nombre del Rol"
                     type="text"
@@ -464,30 +512,68 @@ export function ActivityRolesManager({
                     value={newRoleName}
                     onChange={e => setNewRoleName(e.target.value)}
                     leftIcon="mdi:shield-account-outline"
+                    autoFocus
                   />
 
-                  {/* Color Picker */}
-                  <div>
-                    <label className="text-[11px] font-medium text-zinc-300">
+                  {/* Color Picker & Presets */}
+                  <div className="space-y-2">
+                    <label className="text-xs font-medium text-zinc-200">
                       Color del Rol
                     </label>
-                    <div className="mt-1.5 flex items-center gap-3 rounded-xl border border-zinc-800 bg-zinc-900 px-3.5 py-2">
+                    <div className="flex items-center gap-3 rounded-xl border border-zinc-800 bg-zinc-900/60 px-3.5 py-2.5">
                       <div
-                        className="h-6 w-6 rounded-full shrink-0 border border-white/20 shadow-sm"
+                        className="h-7 w-7 rounded-full shrink-0 border border-white/20 shadow-sm transition-transform hover:scale-105"
                         style={{ backgroundColor: newRoleColor }}
                       />
-                      <input
-                        type="color"
-                        value={newRoleColor}
-                        onChange={e => setNewRoleColor(e.target.value)}
-                        className="h-7 w-10 cursor-pointer rounded border-0 bg-transparent p-0"
-                        title="Abrir paleta de colores"
-                      />
-                      <span className="text-xs text-zinc-400">Haz clic para elegir el color</span>
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <span className="font-mono text-xs text-zinc-300 uppercase tracking-wider">{newRoleColor}</span>
+                        <span className="text-[11px] text-zinc-500 hidden sm:inline">• Elige una muestra o personaliza</span>
+                      </div>
+                      <label className="relative cursor-pointer shrink-0">
+                        <span className="inline-flex items-center gap-1 rounded-lg border border-zinc-700/80 bg-zinc-800/80 px-2.5 py-1 text-[11px] font-medium text-zinc-300 hover:text-white hover:bg-zinc-700 transition-colors">
+                          <Icon icon="mdi:eyedropper-variant" className="h-3.5 w-3.5" />
+                          <span>Paleta</span>
+                        </span>
+                        <input
+                          type="color"
+                          value={newRoleColor}
+                          onChange={e => setNewRoleColor(e.target.value)}
+                          className="sr-only"
+                          title="Abrir paleta personalizada"
+                        />
+                      </label>
+                    </div>
+
+                    {/* Quick Discord Preset Colors */}
+                    <div className="flex items-center gap-2 pt-1 flex-wrap">
+                      <span className="text-[11px] text-zinc-500 font-medium">Recomendados:</span>
+                      {[
+                        { name: 'Púrpura', hex: '#a855f7' },
+                        { name: 'Blurple', hex: '#5865f2' },
+                        { name: 'Verde', hex: '#57f287' },
+                        { name: 'Amarillo', hex: '#fee75c' },
+                        { name: 'Fucsia', hex: '#eb459e' },
+                        { name: 'Rojo', hex: '#ed4245' },
+                        { name: 'Cian', hex: '#00b0f4' },
+                        { name: 'Gris', hex: '#95a5a6' },
+                      ].map(c => (
+                        <button
+                          key={c.hex}
+                          type="button"
+                          onClick={() => setNewRoleColor(c.hex)}
+                          title={`${c.name} (${c.hex})`}
+                          className={`h-5 w-5 rounded-full border transition-all ${
+                            newRoleColor.toLowerCase() === c.hex.toLowerCase()
+                              ? 'border-white scale-125 ring-2 ring-purple-500/50'
+                              : 'border-white/20 hover:scale-110'
+                          }`}
+                          style={{ backgroundColor: c.hex }}
+                        />
+                      ))}
                     </div>
                   </div>
 
-                  <div className="pt-1">
+                  <div className="rounded-xl border border-zinc-800/80 bg-zinc-900/30 p-3">
                     <Checkbox
                       checked={newRoleHoist}
                       onChange={setNewRoleHoist}
@@ -497,248 +583,254 @@ export function ActivityRolesManager({
                     />
                   </div>
 
-                  <div className="flex items-center justify-end gap-2 pt-2">
+                  <div className="flex items-center justify-end gap-3 pt-3 border-t border-zinc-800/80">
                     <button
                       type="button"
-                      onClick={() => setIsCreatingRole(false)}
-                      className="rounded-lg border border-zinc-800 px-3 py-1.5 text-xs text-zinc-400 hover:bg-zinc-900"
+                      onClick={() => {
+                        setModalView('rule')
+                        setModalFeedback(null)
+                      }}
+                      className="rounded-xl border border-zinc-800 px-4 py-2 text-xs font-medium text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200 transition-colors"
                     >
-                      Cancelar
+                      Volver a la Regla
                     </button>
                     <button
                       type="submit"
                       disabled={creatingRoleLoading}
-                      className="inline-flex items-center gap-1.5 rounded-lg bg-purple-600 px-4 py-1.5 text-xs font-semibold text-white shadow-md shadow-purple-900/40 hover:bg-purple-500 disabled:opacity-50"
+                      className="inline-flex items-center gap-1.5 rounded-xl bg-purple-600 px-5 py-2 text-xs font-semibold text-white shadow-lg shadow-purple-900/30 hover:bg-purple-500 disabled:opacity-50 transition-all"
                     >
                       {creatingRoleLoading ? (
                         <>
-                          <Icon icon="mdi:loading" className="h-3.5 w-3.5 animate-spin" />
+                          <Icon icon="mdi:loading" className="h-4 w-4 animate-spin" />
                           <span>Creando en Discord...</span>
                         </>
                       ) : (
                         <>
-                          <Icon icon="mdi:check" className="h-3.5 w-3.5" />
-                          <span>Crear Rol</span>
+                          <Icon icon="mdi:check" className="h-4 w-4" />
+                          <span>Crear Rol en Discord</span>
                         </>
                       )}
                     </button>
                   </div>
                 </form>
-              </div>
-            ) : null}
+              ) : (
+                /* Rule Configuration Form */
+                <form onSubmit={handleCreateRule} className="space-y-4">
+                  <Input
+                    label="Nombre de la Regla"
+                    type="text"
+                    required
+                    placeholder="Ej. Invocadores Activos de General y Memes"
+                    value={ruleName}
+                    onChange={e => setRuleName(e.target.value)}
+                    leftIcon="mdi:tag-outline"
+                  />
 
-            {/* Rule Configuration Form */}
-            <form onSubmit={handleCreateRule} className="mt-5 space-y-4">
-              <Input
-                label="Nombre de la Regla"
-                type="text"
-                required
-                placeholder="Ej. Invocadores Activos de General y Memes"
-                value={ruleName}
-                onChange={e => setRuleName(e.target.value)}
-                leftIcon="mdi:tag-outline"
-              />
-
-              {/* Role Selection with Searchable Combobox */}
-              <RoleSelect
-                label="Rol de Discord a Otorgar"
-                roles={rolesList}
-                value={selectedRoleId}
-                onChange={setSelectedRoleId}
-                onCreateNew={!isCreatingRole ? () => setIsCreatingRole(true) : undefined}
-                placeholder="Selecciona un rol de Discord..."
-              />
-
-              {/* Channel Scope Selection: All vs Specific (Multiple) */}
-              <div>
-                <label className="text-xs font-medium text-zinc-300">
-                  Ámbito de Conteo de Mensajes
-                </label>
-                <div className="mt-2 grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setChannelMode('all')
-                      setSelectedChannelIds([])
-                      setChannelSearchQuery('')
+                  {/* Role Selection with Searchable Combobox */}
+                  <RoleSelect
+                    label="Rol de Discord a Otorgar"
+                    roles={rolesList}
+                    value={selectedRoleId}
+                    onChange={setSelectedRoleId}
+                    onCreateNew={(suggestedName) => {
+                      setModalView('create_role')
+                      setModalFeedback(null)
+                      if (suggestedName && typeof suggestedName === 'string') {
+                        setNewRoleName(suggestedName)
+                      }
                     }}
-                    className={`flex items-center justify-center gap-2 rounded-xl border p-2.5 text-xs font-medium transition-all ${
-                      channelMode === 'all'
-                        ? 'border-purple-500 bg-purple-950/30 text-white font-semibold'
-                        : 'border-zinc-800 bg-zinc-900/40 text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200'
-                    }`}
-                  >
-                    <Icon icon="mdi:earth" className="h-4 w-4 text-purple-400" />
-                    <span>Todo el servidor</span>
-                  </button>
+                    placeholder="Selecciona un rol de Discord..."
+                  />
 
-                  <button
-                    type="button"
-                    onClick={() => setChannelMode('specific')}
-                    className={`flex items-center justify-center gap-2 rounded-xl border p-2.5 text-xs font-medium transition-all ${
-                      channelMode === 'specific'
-                        ? 'border-purple-500 bg-purple-950/30 text-white font-semibold'
-                        : 'border-zinc-800 bg-zinc-900/40 text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200'
-                    }`}
-                  >
-                    <Icon icon="mdi:pound" className="h-4 w-4 text-purple-400" />
-                    <span>Varios canales</span>
-                  </button>
-                </div>
-
-                {/* Multiple Channel Selector Box with Search */}
-                {channelMode === 'specific' && (
-                  <div className="mt-3 rounded-xl border border-zinc-800 bg-zinc-900/50 p-3 space-y-2.5">
-                    {/* Search Filter Bar */}
-                    <div className="relative">
-                      <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-zinc-500">
-                        <Icon icon="mdi:magnify" className="h-3.5 w-3.5" />
-                      </div>
-                      <input
-                        type="text"
-                        value={channelSearchQuery}
-                        onChange={e => setChannelSearchQuery(e.target.value)}
-                        onKeyDown={e => {
-                          if (e.key === 'Escape') setChannelSearchQuery('')
+                  {/* Channel Scope Selection: All vs Specific (Multiple) */}
+                  <div>
+                    <label className="text-xs font-medium text-zinc-300">
+                      Ámbito de Conteo de Mensajes
+                    </label>
+                    <div className="mt-2 grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setChannelMode('all')
+                          setSelectedChannelIds([])
+                          setChannelSearchQuery('')
                         }}
-                        placeholder="Buscar canal por nombre..."
-                        className="w-full rounded-lg border border-zinc-800 bg-zinc-950/70 py-1.5 pl-8 pr-7 text-xs text-white placeholder-zinc-500 outline-none transition-colors focus:border-purple-500 focus:bg-zinc-950"
-                      />
-                      {channelSearchQuery && (
-                        <button
-                          type="button"
-                          onClick={() => setChannelSearchQuery('')}
-                          className="absolute inset-y-0 right-0 flex items-center pr-2.5 text-zinc-500 hover:text-zinc-300"
-                          title="Limpiar búsqueda (Esc)"
-                        >
-                          <Icon icon="mdi:close-circle" className="h-3.5 w-3.5" />
-                        </button>
-                      )}
+                        className={`flex items-center justify-center gap-2 rounded-xl border p-2.5 text-xs font-medium transition-all ${
+                          channelMode === 'all'
+                            ? 'border-purple-500 bg-purple-950/30 text-white font-semibold'
+                            : 'border-zinc-800 bg-zinc-900/40 text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200'
+                        }`}
+                      >
+                        <Icon icon="mdi:earth" className="h-4 w-4 text-purple-400" />
+                        <span>Todo el servidor</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setChannelMode('specific')}
+                        className={`flex items-center justify-center gap-2 rounded-xl border p-2.5 text-xs font-medium transition-all ${
+                          channelMode === 'specific'
+                            ? 'border-purple-500 bg-purple-950/30 text-white font-semibold'
+                            : 'border-zinc-800 bg-zinc-900/40 text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200'
+                        }`}
+                      >
+                        <Icon icon="mdi:pound" className="h-4 w-4 text-purple-400" />
+                        <span>Varios canales</span>
+                      </button>
                     </div>
 
-                    {/* Header with Contextual Select All / Deselect All */}
-                    <div className="flex items-center justify-between border-b border-zinc-800/80 pb-2">
-                      <Checkbox
-                        checked={isAllChannelsSelected}
-                        indeterminate={isSomeChannelsSelected}
-                        onChange={handleToggleAllChannels}
-                        label={
-                          <span className="text-[11px] font-medium text-zinc-300">
-                            {isChannelSearching ? `Seleccionar visibles (${filteredChannels.length})` : 'Seleccionar todos'}
-                          </span>
-                        }
-                        size="sm"
-                        disabled={filteredChannels.length === 0}
-                      />
-                      <span className="text-[11px] font-medium text-purple-300 bg-purple-950/60 border border-purple-800/40 px-2 py-0.5 rounded-md tabular-nums">
-                        {selectedChannelIds.length} de {availableChannels.length} seleccionados
-                      </span>
-                    </div>
-
-                    {/* Channels List */}
-                    <div className="max-h-40 overflow-y-auto space-y-1 pr-1">
-                      {availableChannels.length === 0 ? (
-                        <p className="text-xs text-zinc-500 py-3 text-center">No se encontraron canales de texto en el servidor.</p>
-                      ) : filteredChannels.length === 0 ? (
-                        <div className="py-5 text-center">
-                          <p className="text-xs text-zinc-400">
-                            No hay canales que coincidan con <span className="font-semibold text-zinc-200">«{channelSearchQuery}»</span>
-                          </p>
-                          <button
-                            type="button"
-                            onClick={() => setChannelSearchQuery('')}
-                            className="mt-1.5 text-[11px] font-medium text-purple-400 hover:text-purple-300 hover:underline"
-                          >
-                            Limpiar búsqueda
-                          </button>
+                    {/* Multiple Channel Selector Box with Search */}
+                    {channelMode === 'specific' && (
+                      <div className="mt-3 rounded-xl border border-zinc-800 bg-zinc-900/50 p-3 space-y-2.5">
+                        {/* Search Filter Bar */}
+                        <div className="relative">
+                          <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-zinc-500">
+                            <Icon icon="mdi:magnify" className="h-3.5 w-3.5" />
+                          </div>
+                          <input
+                            type="text"
+                            value={channelSearchQuery}
+                            onChange={e => setChannelSearchQuery(e.target.value)}
+                            onKeyDown={e => {
+                              if (e.key === 'Escape') setChannelSearchQuery('')
+                            }}
+                            placeholder="Buscar canal por nombre..."
+                            className="w-full rounded-lg border border-zinc-800 bg-zinc-950/70 py-1.5 pl-8 pr-7 text-xs text-white placeholder-zinc-500 outline-none transition-colors focus:border-purple-500 focus:bg-zinc-950"
+                          />
+                          {channelSearchQuery && (
+                            <button
+                              type="button"
+                              onClick={() => setChannelSearchQuery('')}
+                              className="absolute inset-y-0 right-0 flex items-center pr-2.5 text-zinc-500 hover:text-zinc-300"
+                              title="Limpiar búsqueda (Esc)"
+                            >
+                              <Icon icon="mdi:close-circle" className="h-3.5 w-3.5" />
+                            </button>
+                          )}
                         </div>
-                      ) : (
-                        filteredChannels.map(chan => {
-                          const checked = selectedChannelIds.includes(chan.id)
-                          return (
-                            <Checkbox
-                              key={chan.id}
-                              checked={checked}
-                              onChange={() => handleToggleChannel(chan.id)}
-                              label={
-                                <span className="flex items-center gap-1.5 font-medium text-xs">
-                                  <span className="text-zinc-500 font-mono">#</span>
-                                  <span>{chan.name}</span>
-                                </span>
-                              }
-                              size="sm"
-                              containerClassName={`w-full flex items-center rounded-lg px-2.5 py-1.5 transition-colors ${
-                                checked
-                                  ? 'bg-purple-950/30 border border-purple-800/30 text-purple-200'
-                                  : 'hover:bg-zinc-800/70 border border-transparent text-zinc-300'
-                              }`}
-                            />
-                          )
-                        })
-                      )}
-                    </div>
+
+                        {/* Header with Contextual Select All / Deselect All */}
+                        <div className="flex items-center justify-between border-b border-zinc-800/80 pb-2">
+                          <Checkbox
+                            checked={isAllChannelsSelected}
+                            indeterminate={isSomeChannelsSelected}
+                            onChange={handleToggleAllChannels}
+                            label={
+                              <span className="text-[11px] font-medium text-zinc-300">
+                                {isChannelSearching ? `Seleccionar visibles (${filteredChannels.length})` : 'Seleccionar todos'}
+                              </span>
+                            }
+                            size="sm"
+                            disabled={filteredChannels.length === 0}
+                          />
+                          <span className="text-[11px] font-medium text-purple-300 bg-purple-950/60 border border-purple-800/40 px-2 py-0.5 rounded-md tabular-nums">
+                            {selectedChannelIds.length} de {availableChannels.length} seleccionados
+                          </span>
+                        </div>
+
+                        {/* Channels List */}
+                        <div className="max-h-40 overflow-y-auto space-y-1 pr-1">
+                          {availableChannels.length === 0 ? (
+                            <p className="text-xs text-zinc-500 py-3 text-center">No se encontraron canales de texto en el servidor.</p>
+                          ) : filteredChannels.length === 0 ? (
+                            <div className="py-5 text-center">
+                              <p className="text-xs text-zinc-400">
+                                No hay canales que coincidan con <span className="font-semibold text-zinc-200">«{channelSearchQuery}»</span>
+                              </p>
+                              <button
+                                type="button"
+                                onClick={() => setChannelSearchQuery('')}
+                                className="mt-1.5 text-[11px] font-medium text-purple-400 hover:text-purple-300 hover:underline"
+                              >
+                                Limpiar búsqueda
+                              </button>
+                            </div>
+                          ) : (
+                            filteredChannels.map(chan => {
+                              const checked = selectedChannelIds.includes(chan.id)
+                              return (
+                                <Checkbox
+                                  key={chan.id}
+                                  checked={checked}
+                                  onChange={() => handleToggleChannel(chan.id)}
+                                  label={
+                                    <span className="flex items-center gap-1.5 font-medium text-xs">
+                                      <span className="text-zinc-500 font-mono">#</span>
+                                      <span>{chan.name}</span>
+                                    </span>
+                                  }
+                                  size="sm"
+                                  containerClassName={`w-full flex items-center rounded-lg px-2.5 py-1.5 transition-colors ${
+                                    checked
+                                      ? 'bg-purple-950/30 border border-purple-800/30 text-purple-200'
+                                      : 'hover:bg-zinc-800/70 border border-transparent text-zinc-300'
+                                  }`}
+                                />
+                              )
+                            })
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
 
-              {/* Requirement & Anti-Spam Cooldown */}
-              <div className="grid grid-cols-2 gap-4">
-                <Input
-                  label="Mensajes Requeridos"
-                  description="Mínimo acumulado para rol"
-                  type="number"
-                  min={1}
-                  max={100000}
-                  step={10}
-                  required
-                  value={messagesReq}
-                  onChange={e => setMessagesReq(Math.max(1, parseInt(e.target.value) || 1))}
-                  leftIcon="mdi:message-text-outline"
-                />
+                  {/* Requirement & Anti-Spam Cooldown */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <Input
+                      label="Mensajes Requeridos"
+                      description="Mínimo acumulado para rol"
+                      type="number"
+                      min={1}
+                      max={100000}
+                      step={10}
+                      required
+                      value={messagesReq}
+                      onChange={e => setMessagesReq(Math.max(1, parseInt(e.target.value) || 1))}
+                      leftIcon="mdi:message-text-outline"
+                    />
 
-                <Input
-                  label="Espera Anti-Spam"
-                  description="Enfriamiento entre mensajes"
-                  type="number"
-                  min={5}
-                  max={3600}
-                  step={5}
-                  required
-                  value={cooldownSec}
-                  onChange={e => setCooldownSec(Math.max(5, parseInt(e.target.value) || 5))}
-                  leftIcon="mdi:timer-sand"
-                  suffix="seg"
-                />
-              </div>
+                    <Input
+                      label="Espera Anti-Spam"
+                      description="Enfriamiento entre mensajes"
+                      type="number"
+                      min={5}
+                      max={3600}
+                      step={5}
+                      required
+                      value={cooldownSec}
+                      onChange={e => setCooldownSec(Math.max(5, parseInt(e.target.value) || 5))}
+                      leftIcon="mdi:timer-sand"
+                      suffix="seg"
+                    />
+                  </div>
 
-              {/* Modal Actions */}
-              <div className="mt-6 flex items-center justify-end gap-3 border-t border-zinc-800/80 pt-4">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsModalOpen(false)
-                    setChannelSearchQuery('')
-                  }}
-                  className="rounded-xl border border-zinc-800 px-4 py-2 text-xs font-medium text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="inline-flex items-center gap-2 rounded-xl bg-purple-600 px-5 py-2 text-xs font-semibold text-white shadow-lg shadow-purple-900/30 hover:bg-purple-500 disabled:opacity-50"
-                >
-                  {loading ? (
-                    <>
-                      <Icon icon="mdi:loading" className="h-4 w-4 animate-spin" />
-                      <span>Guardando...</span>
-                    </>
-                  ) : (
-                    <span>Crear Regla</span>
-                  )}
-                </button>
-              </div>
-            </form>
+                  {/* Modal Actions */}
+                  <div className="mt-6 flex items-center justify-end gap-3 border-t border-zinc-800/80 pt-4">
+                    <button
+                      type="button"
+                      onClick={handleCloseModal}
+                      className="rounded-xl border border-zinc-800 px-4 py-2 text-xs font-medium text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className="inline-flex items-center gap-2 rounded-xl bg-purple-600 px-5 py-2 text-xs font-semibold text-white shadow-lg shadow-purple-900/30 hover:bg-purple-500 disabled:opacity-50"
+                    >
+                      {loading ? (
+                        <>
+                          <Icon icon="mdi:loading" className="h-4 w-4 animate-spin" />
+                          <span>Guardando...</span>
+                        </>
+                      ) : (
+                        <span>Crear Regla</span>
+                      )}
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
           </div>
         </div>
       )}
