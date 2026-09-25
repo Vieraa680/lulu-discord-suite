@@ -6,9 +6,22 @@ import { useState } from 'react'
 import { GuildOption, GuildSelector } from './GuildSelector'
 import { Icon } from './Icon'
 
+import Image from 'next/image'
+import { signOut } from 'next-auth/react'
+
+export interface SidebarUser {
+  id?: string
+  name?: string | null
+  email?: string | null
+  image?: string | null
+  globalName?: string
+  username?: string
+}
+
 interface SidebarProps {
   guildId: string
   availableGuilds: GuildOption[]
+  user?: SidebarUser
 }
 
 const navItems = [
@@ -21,7 +34,7 @@ const navItems = [
   { href: '/dashboard/settings', label: 'Configuración', icon: 'ALARM' },
 ]
 
-export function Sidebar({ guildId, availableGuilds }: SidebarProps) {
+export function Sidebar({ guildId, availableGuilds, user }: SidebarProps) {
   const pathname = usePathname()
   const [mobileOpen, setMobileOpen] = useState(false)
 
@@ -29,6 +42,8 @@ export function Sidebar({ guildId, availableGuilds }: SidebarProps) {
     if (href === '/dashboard') return pathname === '/dashboard'
     return pathname.startsWith(href)
   }
+
+  const displayName = user?.globalName || user?.name || user?.username || 'Administrador'
 
   return (
     <>
@@ -107,6 +122,47 @@ export function Sidebar({ guildId, availableGuilds }: SidebarProps) {
             )
           })}
         </nav>
+
+        {/* User Profile & Sign Out Footer */}
+        {user && (
+          <div className="mt-auto border-t border-zinc-900 pt-3">
+            <div className="flex items-center justify-between rounded-xl bg-zinc-900/60 p-2.5 border border-zinc-800/80">
+              <div className="flex items-center gap-2.5 overflow-hidden">
+                {user.image ? (
+                  <Image
+                    src={user.image}
+                    alt={displayName}
+                    width={32}
+                    height={32}
+                    unoptimized
+                    className="h-8 w-8 rounded-full border border-zinc-700 shrink-0 object-cover"
+                  />
+                ) : (
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-zinc-800 text-xs font-bold text-zinc-300 border border-zinc-700 shrink-0">
+                    {displayName.charAt(0).toUpperCase()}
+                  </div>
+                )}
+                <div className="flex flex-col min-w-0">
+                  <span className="truncate text-xs font-semibold text-zinc-200">
+                    {displayName}
+                  </span>
+                  <span className="truncate text-[10px] text-zinc-500 font-mono">
+                    {user.id ? `${user.id.slice(0, 5)}...${user.id.slice(-4)}` : 'Admin'}
+                  </span>
+                </div>
+              </div>
+
+              <button
+                onClick={() => signOut({ callbackUrl: '/login' })}
+                type="button"
+                title="Cerrar sesión"
+                className="rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-800 hover:text-rose-400 transition-colors cursor-pointer"
+              >
+                <Icon icon="mdi:logout" className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        )}
       </aside>
     </>
   )
