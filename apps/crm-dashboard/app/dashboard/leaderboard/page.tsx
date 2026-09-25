@@ -6,6 +6,8 @@ import { getActiveGuildId, getLeaderboard, type LeaderboardCategory } from '@/li
 export const dynamic = 'force-dynamic'
 
 const categories: Array<{ key: LeaderboardCategory; label: string }> = [
+  { key: 'xp', label: 'XP' },
+  { key: 'level', label: 'Nivel' },
   { key: 'candies', label: 'Caramelos' },
   { key: 'wins', label: 'Victorias en Duelo' },
   { key: 'defenses', label: 'Defensas Exitosas' },

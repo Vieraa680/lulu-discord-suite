@@ -99,7 +99,7 @@ export function RoleSelect({
         {onCreateNew && (
           <button
             type="button"
-            onClick={onCreateNew}
+            onClick={() => onCreateNew()}
             className="inline-flex items-center gap-1 text-[11px] font-medium text-purple-400 hover:text-purple-300 hover:underline transition-colors"
           >
             <Icon icon="mdi:palette-swatch-outline" className="h-3.5 w-3.5" />

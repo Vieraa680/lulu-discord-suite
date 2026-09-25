@@ -1,6 +1,6 @@
 'use server'
 
-import { prisma } from '@lulu-discord/database'
+import { prisma, Prisma } from '@lulu-discord/database'
 import { revalidatePath } from 'next/cache'
 import { cookies } from 'next/headers'
 import { invalidateCache } from '@/lib/dashboard-data'
@@ -70,7 +70,7 @@ export async function adjustUserCandies(formData: FormData): Promise<ActionRespo
     const newBalance = Math.max(0, user.candies + amount)
     const effectiveDelta = newBalance - user.candies
 
-    await prisma.$transaction(async tx => {
+    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       await tx.user.update({
         where: { id: user.id },
         data: {
@@ -505,4 +505,426 @@ export async function deleteActivityRoleRule(formData: FormData): Promise<Action
     return { success: false, message: 'Error al eliminar la regla.' }
   }
 }
+
+export async function updateLevelingConfig(formData: FormData): Promise<ActionResponse> {
+  const guildId = (formData.get('guildId') as string)?.trim()
+  if (!guildId) return { success: false, message: 'ID de servidor requerido.' }
+
+  const xpEnabled = formData.get('xpEnabled') === 'true'
+  const xpPerMessageMin = Math.max(1, parseInt(formData.get('xpPerMessageMin') as string, 10) || 15)
+  const xpPerMessageMax = Math.max(xpPerMessageMin, parseInt(formData.get('xpPerMessageMax') as string, 10) || 25)
+  const xpCooldownSec = Math.max(0, parseInt(formData.get('xpCooldownSec') as string, 10) || 60)
+
+  let xpExcludedChannels: string[] = []
+  try {
+    const raw = formData.get('xpExcludedChannels') as string
+    if (raw) {
+      xpExcludedChannels = JSON.parse(raw)
+    }
+  } catch {
+    xpExcludedChannels = []
+  }
+
+  const rawLevelUpChannel = (formData.get('xpLevelUpChannelId') as string)?.trim()
+  const xpLevelUpChannelId = rawLevelUpChannel && rawLevelUpChannel !== 'default' ? rawLevelUpChannel : null
+
+  const voiceXpEnabled = formData.get('voiceXpEnabled') === 'true'
+  const voiceXpPerMinute = Math.max(1, parseInt(formData.get('voiceXpPerMinute') as string, 10) || 10)
+  const voiceXpMinMembers = Math.max(1, parseInt(formData.get('voiceXpMinMembers') as string, 10) || 2)
+  const voiceXpRequiresUnmuted = formData.get('voiceXpRequiresUnmuted') === 'true'
+
+  let xpRoleMultipliers: Array<{ roleId: string; roleName: string; multiplier: number }> = []
+  try {
+    const rawMultipliers = formData.get('xpRoleMultipliers') as string
+    if (rawMultipliers) {
+      xpRoleMultipliers = JSON.parse(rawMultipliers)
+    }
+  } catch {
+    xpRoleMultipliers = []
+  }
+
+  try {
+    await prisma.guildConfig.upsert({
+      where: { guildId },
+      update: {
+        xpEnabled,
+        xpPerMessageMin,
+        xpPerMessageMax,
+        xpCooldownSec,
+        xpExcludedChannels,
+        xpLevelUpChannelId,
+        voiceXpEnabled,
+        voiceXpPerMinute,
+        voiceXpMinMembers,
+        voiceXpRequiresUnmuted,
+        xpRoleMultipliers,
+      },
+      create: {
+        guildId,
+        xpEnabled,
+        xpPerMessageMin,
+        xpPerMessageMax,
+        xpCooldownSec,
+        xpExcludedChannels,
+        xpLevelUpChannelId,
+        voiceXpEnabled,
+        voiceXpPerMinute,
+        voiceXpMinMembers,
+        voiceXpRequiresUnmuted,
+        xpRoleMultipliers,
+      },
+    })
+
+    invalidateCache(`config:${guildId}`)
+    revalidatePath('/dashboard/levels')
+    revalidatePath('/dashboard/settings')
+    return { success: true, message: 'Cambios guardados.' }
+  } catch (error) {
+    console.error('[actions] updateLevelingConfig error:', error)
+    return { success: false, message: 'No se pudieron guardar los cambios.' }
+  }
+}
+
+export async function createLevelRoleReward(formData: FormData): Promise<ActionResponse> {
+  const guildId = (formData.get('guildId') as string)?.trim()
+  const levelReq = parseInt((formData.get('levelReq') as string) || '1', 10)
+  const roleId = (formData.get('roleId') as string)?.trim()
+  const roleName = (formData.get('roleName') as string)?.trim() || null
+  const roleColor = (formData.get('roleColor') as string)?.trim() || null
+  const removePrevious = formData.get('removePrevious') === 'true'
+
+  if (!guildId) {
+    return { success: false, message: 'Falta el ID del servidor.' }
+  }
+  if (!roleId) {
+    return { success: false, message: 'Debes seleccionar un rol de Discord.' }
+  }
+  if (isNaN(levelReq) || levelReq < 1) {
+    return { success: false, message: 'El nivel debe ser mayor o igual a 1.' }
+  }
+
+  try {
+    await prisma.levelRoleReward.upsert({
+      where: {
+        guildId_levelReq_roleId: {
+          guildId,
+          levelReq,
+          roleId,
+        },
+      },
+      update: {
+        roleName,
+        roleColor,
+        removePrevious,
+        isEnabled: true,
+      },
+      create: {
+        guildId,
+        levelReq,
+        roleId,
+        roleName,
+        roleColor,
+        removePrevious,
+        isEnabled: true,
+      },
+    })
+
+    invalidateCache(`level-rewards:${guildId}`)
+    revalidatePath('/dashboard/levels')
+    return { success: true, message: `Rol de nivel ${levelReq} guardado.` }
+  } catch (error) {
+    console.error('[actions] createLevelRoleReward error:', error)
+    return { success: false, message: 'No se pudo guardar el rol.' }
+  }
+}
+
+export async function toggleLevelRoleReward(formData: FormData): Promise<ActionResponse> {
+  const id = (formData.get('id') as string)?.trim()
+  const guildId = (formData.get('guildId') as string)?.trim()
+
+  if (!id || !guildId) {
+    return { success: false, message: 'Faltan datos.' }
+  }
+
+  try {
+    const existing = await prisma.levelRoleReward.findUnique({
+      where: { id },
+    })
+
+    if (!existing || existing.guildId !== guildId) {
+      return { success: false, message: 'Rol no encontrado.' }
+    }
+
+    await prisma.levelRoleReward.update({
+      where: { id },
+      data: { isEnabled: !existing.isEnabled },
+    })
+
+    invalidateCache(`level-rewards:${guildId}`)
+    revalidatePath('/dashboard/levels')
+    return {
+      success: true,
+      message: existing.isEnabled ? 'Rol pausado.' : 'Rol activado.',
+    }
+  } catch (error) {
+    console.error('[actions] toggleLevelRoleReward error:', error)
+    return { success: false, message: 'No se pudo cambiar el estado.' }
+  }
+}
+
+export async function deleteLevelRoleReward(formData: FormData): Promise<ActionResponse> {
+  const id = (formData.get('id') as string)?.trim()
+  const guildId = (formData.get('guildId') as string)?.trim()
+
+  if (!id || !guildId) {
+    return { success: false, message: 'Faltan datos.' }
+  }
+
+  try {
+    await prisma.levelRoleReward.delete({
+      where: { id },
+    })
+
+    invalidateCache(`level-rewards:${guildId}`)
+    revalidatePath('/dashboard/levels')
+    return { success: true, message: 'Rol eliminado.' }
+  } catch (error) {
+    console.error('[actions] deleteLevelRoleReward error:', error)
+    return { success: false, message: 'No se pudo eliminar el rol.' }
+  }
+}
+
+export async function saveSeason(formData: FormData): Promise<ActionResponse> {
+  const guildId = (formData.get('guildId') as string)?.trim()
+  const seasonId = (formData.get('seasonId') as string)?.trim() || null
+  const name = (formData.get('name') as string)?.trim()
+  const status = ((formData.get('status') as string)?.trim() || 'ACTIVE') as 'ACTIVE' | 'SCHEDULED'
+  const startDateStr = (formData.get('startDate') as string)?.trim()
+  const endDateStr = (formData.get('endDate') as string)?.trim()
+  const rawRewards = (formData.get('rewards') as string)?.trim()
+
+  if (!guildId) return { success: false, message: 'ID de servidor requerido.' }
+  if (!name) return { success: false, message: 'Ingresa un nombre para la temporada.' }
+  if (!endDateStr) return { success: false, message: 'Indica la fecha de finalización.' }
+
+  let rewardsData: Array<{ tier: number; levelReq: number; roleId: string; roleName?: string; roleColor?: string; isTrophy?: boolean }> = []
+  try {
+    rewardsData = rawRewards ? JSON.parse(rawRewards) : []
+  } catch {
+    return { success: false, message: 'Formato de recompensas inválido.' }
+  }
+
+  if (rewardsData.length === 0) {
+    return { success: false, message: 'Debes configurar al menos los roles de la temporada.' }
+  }
+
+  const startDate = startDateStr ? new Date(startDateStr) : new Date()
+  const endDate = new Date(endDateStr)
+  const trophyReward = rewardsData.find(r => r.tier === 5 || r.isTrophy)
+
+  try {
+    let season
+    if (seasonId) {
+      season = await prisma.season.update({
+        where: { id: seasonId },
+        data: {
+          name,
+          status,
+          startDate,
+          endDate,
+          trophyRoleId: trophyReward?.roleId || null,
+          trophyRoleName: trophyReward?.roleName || null,
+        },
+      })
+      await prisma.seasonRoleReward.deleteMany({ where: { seasonId } })
+    } else {
+      season = await prisma.season.create({
+        data: {
+          guildId,
+          name,
+          status,
+          startDate,
+          endDate,
+          trophyRoleId: trophyReward?.roleId || null,
+          trophyRoleName: trophyReward?.roleName || null,
+        },
+      })
+    }
+
+    for (const r of rewardsData) {
+      await prisma.seasonRoleReward.create({
+        data: {
+          seasonId: season.id,
+          tier: r.tier,
+          levelReq: r.levelReq,
+          roleId: r.roleId,
+          roleName: r.roleName || null,
+          roleColor: r.roleColor || null,
+          isTrophy: r.tier === 5 || !!r.isTrophy,
+        },
+      })
+    }
+
+    if (status === 'ACTIVE') {
+      await prisma.levelRoleReward.deleteMany({ where: { guildId } })
+      for (const r of rewardsData) {
+        await prisma.levelRoleReward.create({
+          data: {
+            guildId,
+            levelReq: r.levelReq,
+            roleId: r.roleId,
+            roleName: r.roleName || null,
+            roleColor: r.roleColor || null,
+            removePrevious: true,
+            isEnabled: true,
+          },
+        })
+      }
+    }
+
+    invalidateCache(`seasons:${guildId}`)
+    invalidateCache(`level-rewards:${guildId}`)
+    revalidatePath('/dashboard/levels')
+    return { success: true, message: 'Temporada guardada correctamente.' }
+  } catch (error) {
+    console.error('[actions] saveSeason error:', error)
+    return { success: false, message: 'No se pudo guardar la temporada.' }
+  }
+}
+
+export async function triggerSeasonRotation(formData: FormData): Promise<ActionResponse> {
+  const guildId = (formData.get('guildId') as string)?.trim()
+  const seasonId = (formData.get('seasonId') as string)?.trim()
+
+  if (!guildId) return { success: false, message: 'ID de servidor requerido.' }
+
+  const token = process.env.DISCORD_TOKEN?.trim()
+
+  try {
+    const activeSeason = seasonId
+      ? await prisma.season.findUnique({
+          where: { id: seasonId },
+          include: { rewards: true },
+        })
+      : await prisma.season.findFirst({
+          where: { guildId, status: 'ACTIVE' },
+          include: { rewards: true },
+        })
+
+    if (!activeSeason) {
+      return { success: false, message: 'No se encontró ninguna temporada activa para rotar.' }
+    }
+
+    const trophyReward = activeSeason.rewards.find(r => r.isTrophy || r.tier === 5)
+    const tempRewards = activeSeason.rewards.filter(r => !r.isTrophy && r.tier !== 5)
+
+    if (trophyReward) {
+      const trophyUsers = await prisma.user.findMany({
+        where: {
+          guildId,
+          level: { gte: trophyReward.levelReq },
+        },
+      })
+
+      for (const u of trophyUsers) {
+        await prisma.seasonWinner.upsert({
+          where: {
+            seasonId_discordId: {
+              seasonId: activeSeason.id,
+              discordId: u.discordId,
+            },
+          },
+          update: {
+            finalLevel: u.level,
+            finalXp: u.xp,
+            achievedTrophy: true,
+            username: u.username,
+            avatarUrl: u.avatarUrl,
+          },
+          create: {
+            seasonId: activeSeason.id,
+            guildId,
+            discordId: u.discordId,
+            username: u.username,
+            avatarUrl: u.avatarUrl,
+            finalLevel: u.level,
+            finalXp: u.xp,
+            achievedTrophy: true,
+          },
+        })
+      }
+    }
+
+    if (token) {
+      for (const rew of tempRewards) {
+        try {
+          await fetch(`https://discord.com/api/v10/guilds/${guildId}/roles/${rew.roleId}`, {
+            method: 'DELETE',
+            headers: {
+              Authorization: `Bot ${token}`,
+              'X-Audit-Log-Reason': `Fin de temporada: ${activeSeason.name}`,
+            },
+          })
+        } catch (err) {
+          console.warn('[actions] Error deleting temp role:', rew.roleId, err)
+        }
+      }
+    }
+
+    await prisma.season.update({
+      where: { id: activeSeason.id },
+      data: { status: 'COMPLETED' },
+    })
+
+    await prisma.user.updateMany({
+      where: { guildId },
+      data: { xp: 0, level: 0 },
+    })
+
+    const nextSeason = await prisma.season.findFirst({
+      where: { guildId, status: 'SCHEDULED' },
+      orderBy: { startDate: 'asc' },
+      include: { rewards: true },
+    })
+
+    if (nextSeason) {
+      await prisma.season.update({
+        where: { id: nextSeason.id },
+        data: { status: 'ACTIVE' },
+      })
+
+      await prisma.levelRoleReward.deleteMany({ where: { guildId } })
+      for (const rew of nextSeason.rewards) {
+        await prisma.levelRoleReward.create({
+          data: {
+            guildId,
+            levelReq: rew.levelReq,
+            roleId: rew.roleId,
+            roleName: rew.roleName,
+            roleColor: rew.roleColor,
+            removePrevious: true,
+            isEnabled: true,
+          },
+        })
+      }
+    } else {
+      await prisma.levelRoleReward.deleteMany({ where: { guildId } })
+    }
+
+    invalidateCache(`seasons:${guildId}`)
+    invalidateCache(`level-rewards:${guildId}`)
+    invalidateCache(`leaderboard:${guildId}`)
+    revalidatePath('/dashboard/levels')
+    revalidatePath('/dashboard/leaderboard')
+    return {
+      success: true,
+      message: `Temporada finalizada. Se reinició la experiencia de todos y el rol trofeo permanece en los ganadores.`,
+    }
+  } catch (error) {
+    console.error('[actions] triggerSeasonRotation error:', error)
+    return { success: false, message: 'No se pudo completar la rotación de temporada.' }
+  }
+}
+
+
 

@@ -1,4 +1,4 @@
-import { prisma, type GuildConfig, type ActivityRoleRule } from '@lulu-discord/database'
+import { prisma, type GuildConfig, type ActivityRoleRule, type LevelRoleReward, type Season, type SeasonRoleReward, type SeasonWinner } from '@lulu-discord/database'
 import { cookies } from 'next/headers'
 
 export const DEFAULT_GUILD_ID = process.env.GUILD_ID?.trim() || ''
@@ -162,6 +162,8 @@ export async function getGuildId(searchGuildId?: string | null): Promise<string>
 }
 
 export const LEADERBOARD_FIELDS = {
+  xp: 'xp',
+  level: 'level',
   candies: 'candies',
   wins: 'polymorphiaWins',
   defenses: 'polymorphiaSaved',
@@ -367,6 +369,8 @@ export async function getLeaderboard(guildId: string, category: LeaderboardCateg
         globalName: true,
         avatarUrl: true,
         candies: true,
+        xp: true,
+        level: true,
         polymorphiaWins: true,
         polymorphiaLosses: true,
         polymorphiaSaved: true,
@@ -547,6 +551,17 @@ export async function getGuildConfig(guildId: string): Promise<GuildConfig> {
     polymorphiaMaxBet: 1000,
     adminRoleId: null,
     logChannelId: null,
+    xpEnabled: true,
+    xpPerMessageMin: 15,
+    xpPerMessageMax: 25,
+    xpCooldownSec: 60,
+    xpExcludedChannels: [],
+    xpLevelUpChannelId: null,
+    voiceXpEnabled: true,
+    voiceXpPerMinute: 10,
+    voiceXpMinMembers: 2,
+    voiceXpRequiresUnmuted: false,
+    xpRoleMultipliers: [],
     createdAt: new Date(),
     updatedAt: new Date(),
   }
@@ -696,4 +711,77 @@ export async function getActivityRoleRules(guildId: string): Promise<ActivityRol
     return []
   }
 }
+
+export async function getLevelRoleRewards(guildId: string): Promise<LevelRoleReward[]> {
+  if (!guildId) return []
+
+  const key = `level-rewards:${guildId}`
+  const cached = getCached<LevelRoleReward[]>(key)
+  if (cached) return cached
+
+  try {
+    const rewards = await prisma.levelRoleReward.findMany({
+      where: { guildId },
+      orderBy: { levelReq: 'asc' },
+    })
+
+    return setCached(key, rewards, 30_000)
+  } catch (err) {
+    console.error('[dashboard-data] getLevelRoleRewards error:', err)
+    return []
+  }
+}
+
+export interface SeasonWithRewards extends Season {
+  rewards: SeasonRoleReward[]
+  winners?: SeasonWinner[]
+  winnersCount?: number
+}
+
+export interface SeasonsData {
+  activeSeason: SeasonWithRewards | null
+  upcomingSeason: SeasonWithRewards | null
+  pastSeasons: (Season & { rewards: SeasonRoleReward[]; winners: SeasonWinner[] })[]
+}
+
+export async function getSeasonsData(guildId: string): Promise<SeasonsData> {
+  if (!guildId) {
+    return { activeSeason: null, upcomingSeason: null, pastSeasons: [] }
+  }
+
+  const key = `seasons:${guildId}`
+  const cached = getCached<SeasonsData>(key)
+  if (cached) return cached
+
+  try {
+    const seasons = await prisma.season.findMany({
+      where: { guildId },
+      include: {
+        rewards: {
+          orderBy: { tier: 'asc' },
+        },
+        winners: {
+          orderBy: { finalLevel: 'desc' },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    })
+
+    const activeSeason = seasons.find(s => s.status === 'ACTIVE') || null
+    const upcomingSeason = seasons.find(s => s.status === 'SCHEDULED') || null
+    const pastSeasons = seasons.filter(s => s.status === 'COMPLETED')
+
+    const data: SeasonsData = {
+      activeSeason: activeSeason ? { ...activeSeason, winnersCount: activeSeason.winners.length } : null,
+      upcomingSeason,
+      pastSeasons,
+    }
+
+    return setCached(key, data, 15_000)
+  } catch (err) {
+    console.error('[dashboard-data] getSeasonsData error:', err)
+    return { activeSeason: null, upcomingSeason: null, pastSeasons: [] }
+  }
+}
+
 
