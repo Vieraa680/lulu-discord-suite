@@ -60,6 +60,13 @@ model User {
   messageCount Int       @default(0) // Total messages sent in this guild
   lastActiveAt DateTime?             // Timestamp of last detected message
 
+  // ── Leveling & XP ──
+  xp                Int       @default(0)
+  level             Int       @default(0)
+  lastMessageXpAt   DateTime?
+  lastVoiceXpAt     DateTime?
+  voiceMinutesTotal Int       @default(0)
+
   // ── Timestamps ──
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -67,6 +74,7 @@ model User {
   @@unique([discordId, guildId])
   @@index([discordId])
   @@index([guildId])
+  @@index([guildId, xp(sort: Desc)])
 }
 
 // ──────────────────────────────────────────────
@@ -84,6 +92,20 @@ model GuildConfig {
   polymorphiaMaxBet        Int      @default(1000)
   adminRoleId              String?
   logChannelId             String?
+
+  // ── Leveling & XP ──
+  xpEnabled                 Boolean  @default(true)
+  xpPerMessageMin           Int      @default(15)
+  xpPerMessageMax           Int      @default(25)
+  xpCooldownSec             Int      @default(60)
+  xpExcludedChannels        String[] @default([])
+  xpLevelUpChannelId        String?
+  voiceXpEnabled            Boolean  @default(true)
+  voiceXpPerMinute          Int      @default(10)
+  voiceXpMinMembers         Int      @default(2)
+  voiceXpRequiresUnmuted    Boolean  @default(false)
+  xpRoleMultipliers         Json?    @default("[]")
+
   createdAt                DateTime @default(now())
   updatedAt                DateTime @updatedAt
 }
@@ -248,5 +270,82 @@ model UserChannelActivity {
 
   @@unique([userId, channelId])
   @@index([guildId, channelId])
+}
+
+// ──────────────────────────────────────────────
+// LEVEL ROLE REWARD
+// ──────────────────────────────────────────────
+// Awards a Discord role upon reaching a specific level.
+model LevelRoleReward {
+  id             String   @id @default(uuid())
+  guildId        String
+  levelReq       Int      // Level threshold to unlock this role
+  roleId         String   // Target Discord Role ID
+  roleName       String?  // Cached role name for UI display
+  roleColor      String?  // Cached role hex color for UI badge display
+  removePrevious Boolean  @default(true) // Whether to remove lower tier level roles
+  isEnabled      Boolean  @default(true) // Switch to temporarily pause/enable without deletion
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([guildId, levelReq, roleId])
+  @@index([guildId, levelReq])
+}
+
+// ──────────────────────────────────────────────
+// SEASONS & MONTHLY PASS
+// ──────────────────────────────────────────────
+model Season {
+  id             String             @id @default(uuid())
+  guildId        String
+  name           String
+  number         Int                @default(1)
+  startDate      DateTime
+  endDate        DateTime
+  status         String             @default("ACTIVE") // ACTIVE, SCHEDULED, COMPLETED
+  trophyRoleId   String?
+  trophyRoleName String?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  rewards        SeasonRoleReward[]
+  winners        SeasonWinner[]
+
+  @@index([guildId, status])
+}
+
+model SeasonRoleReward {
+  id        String   @id @default(uuid())
+  seasonId  String
+  tier      Int      // 1 to 5
+  levelReq  Int
+  roleId    String
+  roleName  String?
+  roleColor String?
+  isTrophy  Boolean  @default(false)
+
+  season    Season   @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+
+  @@unique([seasonId, tier])
+  @@index([seasonId])
+}
+
+model SeasonWinner {
+  id             String   @id @default(uuid())
+  seasonId       String
+  guildId        String
+  discordId      String
+  username       String   @default("")
+  avatarUrl      String?
+  finalLevel     Int      @default(0)
+  finalXp        Int      @default(0)
+  achievedTrophy Boolean  @default(true)
+  createdAt      DateTime @default(now())
+
+  season         Season   @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+
+  @@unique([seasonId, discordId])
+  @@index([guildId])
+  @@index([seasonId])
 }
 
